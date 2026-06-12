@@ -86,6 +86,32 @@ button {
   padding: 20px 14px 116px;
 }
 
+.public-tabs {
+  position: relative;
+  z-index: 2;
+  width: min(430px, 100%);
+  margin: 0 auto;
+  padding: 18px 14px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.public-tabs button {
+  min-height: 42px;
+  border-radius: 12px;
+  background: rgba(31, 32, 38, .62);
+  color: rgba(255, 255, 255, .76);
+  font-weight: 900;
+  border: 1px solid rgba(255, 255, 255, .12);
+  backdrop-filter: blur(16px);
+}
+
+.public-tabs button.active {
+  background: #e45fc0;
+  color: #fff;
+}
+
 .glass {
   border: 1px solid rgba(255, 255, 255, .13);
   background: rgba(70, 69, 73, .58);
@@ -519,6 +545,10 @@ p {
   text-align: center;
 }
 
+.done-card .secondary {
+  margin-top: 8px;
+}
+
 .stars {
   display: flex;
   gap: 4px;
@@ -701,6 +731,47 @@ textarea {
 
 .appointment-row em.cancelled {
   color: #ff9aa9;
+}
+
+.my-appointment {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .09);
+  text-align: left;
+}
+
+.my-appointment strong {
+  font-size: 17px;
+}
+
+.my-appointment span {
+  color: rgba(255, 255, 255, .76);
+}
+
+.my-appointment em {
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .13);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.review-summary {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .1);
+}
+
+.review-summary p {
+  margin: 0;
+  color: rgba(255, 255, 255, .8);
 }
 
 @media (min-width: 760px) {

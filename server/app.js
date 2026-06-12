@@ -106,6 +106,34 @@ app.post('/api/appointments', asyncRoute(async (req, res) => {
   res.status(201).json({ appointment });
 }));
 
+function sameUser(left = {}, right = {}) {
+  if (left.id && right.id) return String(left.id) === String(right.id);
+  if (left.username && right.username) {
+    return String(left.username).replace('@', '').toLowerCase() === String(right.username).replace('@', '').toLowerCase();
+  }
+  return false;
+}
+
+app.get('/api/my/appointments', asyncRoute(async (req, res) => {
+  const store = await readStore();
+  const user = getRequestUser(req);
+  const appointments = store.appointments
+    .filter((appointment) => sameUser(appointment.user, user))
+    .map((appointment) => {
+      const found = findService(store, appointment.serviceId);
+      const review = store.reviews.find((item) => item.appointmentId === appointment.id);
+      return {
+        ...appointment,
+        service: found?.service || null,
+        category: found?.category ? { id: found.category.id, title: found.category.title } : null,
+        review: review || null
+      };
+    })
+    .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
+
+  res.json({ appointments });
+}));
+
 app.post('/api/reviews', asyncRoute(async (req, res) => {
   const user = getRequestUser(req) || req.body.user || {};
   const { appointmentId, rating, text } = req.body;
@@ -116,6 +144,15 @@ app.post('/api/reviews', asyncRoute(async (req, res) => {
     await updateStore((draft) => {
       const appointment = draft.appointments.find((item) => item.id === appointmentId);
       if (!appointment) throw new Error('appointment_not_found');
+      const existing = draft.reviews.find((item) => item.appointmentId === appointmentId);
+      if (existing) {
+        existing.rating = normalizedRating;
+        existing.text = String(text || '').slice(0, 700);
+        existing.updatedAt = new Date().toISOString();
+        review = existing;
+        return;
+      }
+
       review = {
         id: makeId('rev'),
         appointmentId,

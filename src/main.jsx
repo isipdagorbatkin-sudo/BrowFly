@@ -103,6 +103,7 @@ function SocialIcon({ type }) {
 function App() {
   const [data, setData] = useState(null);
   const [mode, setMode] = useState('public');
+  const [publicTab, setPublicTab] = useState('profile');
   const [selected, setSelected] = useState(null);
   const [booking, setBooking] = useState(false);
   const [toast, setToast] = useState('');
@@ -136,6 +137,7 @@ function App() {
           onClick={() => {
             setMode(mode === 'admin' ? 'public' : 'admin');
             setBooking(false);
+            setPublicTab('profile');
           }}
           aria-label={mode === 'admin' ? 'Закрыть настройки' : 'Настройки'}
         >
@@ -146,15 +148,32 @@ function App() {
       {mode === 'admin' && isAdmin ? (
         <AdminPanel data={data} reload={load} showToast={showToast} />
       ) : booking && selected ? (
-        <BookingFlow selected={selected} onBack={() => setBooking(false)} showToast={showToast} />
-      ) : (
-        <PublicProfile
-          data={data}
+        <BookingFlow
           selected={selected}
-          setSelected={setSelected}
-          onContinue={() => setBooking(true)}
+          onBack={() => setBooking(false)}
+          onBooked={async () => {
+            setBooking(false);
+            setSelected(null);
+            setPublicTab('appointments');
+            await load();
+          }}
           showToast={showToast}
         />
+      ) : (
+        <>
+          <PublicTabs active={publicTab} setActive={setPublicTab} />
+          {publicTab === 'profile' ? (
+            <PublicProfile
+              data={data}
+              selected={selected}
+              setSelected={setSelected}
+              onContinue={() => setBooking(true)}
+              showToast={showToast}
+            />
+          ) : (
+            <MyAppointments data={data} reload={load} showToast={showToast} />
+          )}
+        </>
       )}
 
       {toast && <div className="toast">{toast}</div>}
@@ -313,7 +332,7 @@ function ServiceCategory({ category, defaultOpen, selected, setSelected }) {
   );
 }
 
-function BookingFlow({ selected, onBack, showToast }) {
+function BookingFlow({ selected, onBack, onBooked, showToast }) {
   const [month, setMonth] = useState(() => new Date());
   const [days, setDays] = useState([]);
   const [date, setDate] = useState('');
@@ -360,7 +379,7 @@ function BookingFlow({ selected, onBack, showToast }) {
   }, [days, month]);
 
   if (done) {
-    return <ReviewScreen appointment={done} selected={selected} onBack={onBack} showToast={showToast} />;
+    return <BookingCreated appointment={done} selected={selected} onBack={onBack} onBooked={onBooked} />;
   }
 
   return (
@@ -430,27 +449,103 @@ function SlotGroup({ title, slots, time, setTime }) {
   );
 }
 
-function ReviewScreen({ appointment, selected, onBack, showToast }) {
+function BookingCreated({ appointment, selected, onBack, onBooked }) {
+  return (
+    <main className="content">
+      <section className="done-card glass">
+        <CalendarDays size={36} />
+        <h2>Запись создана!</h2>
+        <p>{selected.title}, {appointment.date} в {appointment.time}</p>
+        <p>Посмотреть ее можно во вкладке «Мои записи».</p>
+        <button className="primary" onClick={onBooked}>Мои записи</button>
+        <button className="secondary" onClick={onBack}>Вернуться на главную</button>
+      </section>
+    </main>
+  );
+}
+
+function MyAppointments({ data, reload, showToast }) {
+  const [appointments, setAppointments] = useState([]);
+  const [active, setActive] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadAppointments();
+  }, []);
+
+  async function loadAppointments() {
+    setLoading(true);
+    const result = await api('/api/my/appointments');
+    setAppointments(result.appointments || []);
+    setLoading(false);
+  }
+
+  async function refreshAll() {
+    await loadAppointments();
+    await reload();
+  }
+
+  if (active) {
+    return (
+      <AppointmentDetails
+        appointment={active}
+        onBack={() => setActive(null)}
+        onReviewed={refreshAll}
+        showToast={showToast}
+      />
+    );
+  }
+
+  return (
+    <main className="content">
+      <section className="admin-card glass">
+        <h2>Мои записи</h2>
+        {loading && <p className="muted">Загрузка...</p>}
+        {!loading && appointments.length === 0 && <p className="muted">Записей пока нет.</p>}
+        {appointments.map((appointment) => (
+          <button className="my-appointment" key={appointment.id} onClick={() => setActive(appointment)}>
+            <strong>{appointment.service?.title || 'Услуга'}</strong>
+            <span>{appointment.date} в {appointment.time}</span>
+            <em>{appointment.status === 'cancelled' ? 'Отменена' : appointment.review ? 'Отзыв оставлен' : 'Открыть'}</em>
+          </button>
+        ))}
+      </section>
+    </main>
+  );
+}
+
+function AppointmentDetails({ appointment, onBack, onReviewed, showToast }) {
   const [rating, setRating] = useState(5);
   const [text, setText] = useState('');
-  const [sent, setSent] = useState(false);
+  const [review, setReview] = useState(appointment.review);
 
   async function sendReview() {
-    await api('/api/reviews', {
+    const result = await api('/api/reviews', {
       method: 'POST',
       body: JSON.stringify({ appointmentId: appointment.id, rating, text, user: getUser() })
     });
-    setSent(true);
+    setReview(result.review);
+    await onReviewed();
     showToast('Спасибо за отзыв!');
   }
 
   return (
     <main className="content">
       <section className="done-card glass">
-        <CalendarDays size={36} />
-        <h2>Запись создана</h2>
-        <p>{selected.title}, {appointment.date} в {appointment.time}</p>
-        {!sent ? (
+        <button className="back-to-profile glass" onClick={onBack}>
+          <ChevronLeft size={18} />
+          Назад
+        </button>
+        <CalendarDays size={34} />
+        <h2>{appointment.service?.title || 'Запись'}</h2>
+        <p>{appointment.date} в {appointment.time}</p>
+        {appointment.service?.price ? <p>{money(appointment.service.price)} · {minutes(appointment.service.durationMinutes)}</p> : null}
+        {review ? (
+          <div className="review-summary">
+            <strong>Твоя оценка: {review.rating}/5</strong>
+            {review.text && <p>{review.text}</p>}
+          </div>
+        ) : (
           <>
             <div className="stars">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -462,7 +557,7 @@ function ReviewScreen({ appointment, selected, onBack, showToast }) {
             <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Отзыв после визита можно оставить здесь" />
             <button className="primary" onClick={sendReview}>Оставить отзыв</button>
           </>
-        ) : <button className="primary" onClick={onBack}>Вернуться к услугам</button>}
+        )}
       </section>
     </main>
   );
@@ -759,6 +854,19 @@ function AdminAppointments({ store, refresh, showToast }) {
         </div>
       ))}
     </section>
+  );
+}
+
+function PublicTabs({ active, setActive }) {
+  return (
+    <nav className="public-tabs">
+      <button className={active === 'profile' ? 'active' : ''} onClick={() => setActive('profile')}>
+        Профиль
+      </button>
+      <button className={active === 'appointments' ? 'active' : ''} onClick={() => setActive('appointments')}>
+        Мои записи
+      </button>
+    </nav>
   );
 }
 
