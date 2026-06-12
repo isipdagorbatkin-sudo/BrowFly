@@ -572,12 +572,15 @@ textarea {
 .secondary,
 .inline-fields button,
 .chips button,
-.appointment-row button {
+.appointment-row button,
+.appointment-row a {
   min-height: 38px;
   padding: 0 12px;
   border-radius: 10px;
   background: rgba(255, 255, 255, .13);
   font-weight: 800;
+  color: #fff;
+  text-decoration: none;
 }
 
 .tabs button.active {
@@ -657,9 +660,23 @@ textarea {
   background: rgba(255, 255, 255, .08);
 }
 
-.appointment-row div {
+.appointment-info {
   display: grid;
   gap: 4px;
+}
+
+.appointment-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.appointment-actions a,
+.appointment-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .appointment-row span {

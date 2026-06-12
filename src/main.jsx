@@ -483,13 +483,13 @@ function AdminPanel({ data, reload, showToast }) {
   return (
     <main className="content admin">
       <section className="admin-head glass">
-        <h1>Админка Юлии</h1>
+        <h1>Админка Юльки</h1>
         <div className="tabs">
           {[
             ['profile', 'Профиль'],
+            ['appointments', 'Записи'],
             ['services', 'Услуги'],
-            ['schedule', 'График'],
-            ['appointments', 'Записи']
+            ['schedule', 'График']
           ].map(([id, label]) => (
             <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>
           ))}
@@ -519,11 +519,15 @@ function AdminProfile({ store, refresh, showToast }) {
     input.accept = 'image/*';
     input.onchange = async () => {
       const url = await uploadFile(input.files[0]);
-      if (target === 'avatar') setProfile({ ...profile, avatarUrl: url });
+      if (target === 'avatar') {
+        setProfile({ ...profile, avatarUrl: url });
+        showToast('Аватар загружен. Нажми “Сохранить”.');
+      }
       if (target === 'gallery') {
         const gallery = [...(profile.gallery || [])];
         gallery[index] = url;
         setProfile({ ...profile, gallery: gallery.slice(0, 3) });
+        showToast('Фото загружено. Нажми “Сохранить”.');
       }
     };
     input.click();
@@ -600,6 +604,7 @@ function AdminServices({ store, refresh, showToast }) {
       photos[photoIndex] = url;
       next[catIndex].items[itemIndex].photos = photos.slice(0, 3);
       setServices(next);
+      showToast('Фото услуги загружено. Нажми “Сохранить услуги”.');
     };
     input.click();
   }
@@ -608,14 +613,24 @@ function AdminServices({ store, refresh, showToast }) {
     <section className="admin-card glass">
       {services.map((category, catIndex) => (
         <div className="admin-category" key={category.id}>
-          <input value={category.title} onChange={(event) => updateCategory(catIndex, { title: event.target.value })} />
+          <label>Название категории
+            <input value={category.title} onChange={(event) => updateCategory(catIndex, { title: event.target.value })} />
+          </label>
           {category.items.map((item, itemIndex) => (
             <div className="admin-service" key={item.id}>
-              <input value={item.title} onChange={(event) => updateItem(catIndex, itemIndex, { title: event.target.value })} />
-              <textarea value={item.description} onChange={(event) => updateItem(catIndex, itemIndex, { description: event.target.value })} />
+              <label>Название услуги
+                <input value={item.title} onChange={(event) => updateItem(catIndex, itemIndex, { title: event.target.value })} />
+              </label>
+              <label>Описание услуги
+                <textarea value={item.description} onChange={(event) => updateItem(catIndex, itemIndex, { description: event.target.value })} />
+              </label>
               <div className="inline-fields">
-                <input type="number" value={item.durationMinutes} onChange={(event) => updateItem(catIndex, itemIndex, { durationMinutes: Number(event.target.value) })} />
-                <input type="number" value={item.price} onChange={(event) => updateItem(catIndex, itemIndex, { price: Number(event.target.value) })} />
+                <label>Длительность, мин
+                  <input type="number" value={item.durationMinutes} onChange={(event) => updateItem(catIndex, itemIndex, { durationMinutes: Number(event.target.value) })} />
+                </label>
+                <label>Цена, ₽
+                  <input type="number" value={item.price} onChange={(event) => updateItem(catIndex, itemIndex, { price: Number(event.target.value) })} />
+                </label>
                 <button onClick={() => {
                   const next = [...services];
                   next[catIndex].items = next[catIndex].items.filter((_, i) => i !== itemIndex);
@@ -714,18 +729,29 @@ function AdminAppointments({ store, refresh, showToast }) {
     refresh();
   }
 
+  function clientMessageUrl(user) {
+    if (user?.username) return `https://t.me/${String(user.username).replace('@', '')}`;
+    if (user?.id) return `tg://user?id=${user.id}`;
+    return '';
+  }
+
   return (
     <section className="admin-card glass">
       {store.appointments.length === 0 && <p className="muted">Записей пока нет</p>}
       {store.appointments.map((appointment) => (
         <div className="appointment-row" key={appointment.id}>
-          <div>
+          <div className="appointment-info">
             <strong>{services.get(appointment.serviceId)?.title || appointment.serviceId}</strong>
             <span>{appointment.date} в {appointment.time}</span>
             <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
           </div>
           <em className={appointment.status}>{appointment.status}</em>
-          {appointment.status !== 'cancelled' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
+          <div className="appointment-actions">
+            {clientMessageUrl(appointment.user) && (
+              <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>
+            )}
+            {appointment.status !== 'cancelled' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
+          </div>
         </div>
       ))}
     </section>
