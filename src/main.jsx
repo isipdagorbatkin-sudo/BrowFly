@@ -258,6 +258,8 @@ function App() {
               onContinue={() => setBooking(true)}
               showToast={showToast}
             />
+          ) : publicTab === 'reviews' ? (
+            <PublicReviews data={data} />
           ) : (
             <MyAppointments data={data} reload={load} showToast={showToast} />
           )}
@@ -1281,6 +1283,35 @@ function AdminAppointments({ store, refresh, showToast }) {
   );
 }
 
+function PublicReviews({ data }) {
+  const reviews = data.reviews || [];
+
+  return (
+    <main className="content">
+      <section className="admin-card glass">
+        <h2>Отзывы</h2>
+        {reviews.length === 0 && <p className="muted">Отзывов пока нет</p>}
+        {reviews.map((review) => (
+          <div className="review-card" key={review.id}>
+            <div className="review-card-header">
+              <span className="review-author">{review.user?.first_name || 'Клиент'}</span>
+              <span className="review-stars">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star key={star} size={14} fill={star <= review.rating ? '#ffd84a' : 'transparent'} color="#ffd84a" />
+                ))}
+              </span>
+            </div>
+            {review.text && <p className="review-text">{review.text}</p>}
+            <span className="review-date">
+              {new Date(review.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+          </div>
+        ))}
+      </section>
+    </main>
+  );
+}
+
 function PublicTabs({ active, setActive }) {
   return (
     <nav className="public-tabs">
@@ -1288,7 +1319,10 @@ function PublicTabs({ active, setActive }) {
         Профиль
       </button>
       <button className={active === 'appointments' ? 'active' : ''} onClick={() => setActive('appointments')}>
-        Мои записи
+        Запись
+      </button>
+      <button className={active === 'reviews' ? 'active' : ''} onClick={() => setActive('reviews')}>
+        Отзывы
       </button>
     </nav>
   );
