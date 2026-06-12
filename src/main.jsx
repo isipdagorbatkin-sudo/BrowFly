@@ -99,6 +99,12 @@ function appointmentTitle(appointment) {
   return appointmentServices(appointment).map((service) => service.title).filter(Boolean).join(', ') || 'Услуга';
 }
 
+function appointmentStatusLabel(status) {
+  if (status === 'cancelled') return 'Отменена';
+  if (status === 'completed') return 'Завершена';
+  return 'Активна';
+}
+
 function monthLabel(date) {
   return date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 }
@@ -551,7 +557,7 @@ function MyAppointments({ data, reload, showToast }) {
           <button className="my-appointment" key={appointment.id} onClick={() => setActive(appointment)}>
             <strong>{appointmentTitle(appointment)}</strong>
             <span>{appointment.date} в {appointment.time}</span>
-            <em>{appointment.status === 'cancelled' ? 'Отменена' : appointment.review ? 'Отзыв оставлен' : 'Открыть'}</em>
+            <em>{appointment.review ? 'Отзыв оставлен' : appointmentStatusLabel(appointment.status)}</em>
           </button>
         ))}
       </section>
@@ -564,6 +570,7 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
   const [text, setText] = useState('');
   const [review, setReview] = useState(appointment.review);
   const isCancelled = appointment.status === 'cancelled';
+  const isCompleted = appointment.status === 'completed';
   const services = appointmentServices(appointment);
   const totalPrice = appointment.totalPrice || services.reduce((sum, service) => sum + Number(service.price || 0), 0);
   const totalDuration = appointment.totalDurationMinutes || services.reduce((sum, service) => sum + Number(service.durationMinutes || 0), 0);
@@ -599,7 +606,8 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
         <p>{appointment.date} в {appointment.time}</p>
         {totalPrice || totalDuration ? <p>{money(totalPrice)} · {minutes(totalDuration)}</p> : null}
         {isCancelled && <p className="muted">Эта запись отменена.</p>}
-        {!isCancelled && (
+        {isCompleted && !review && <p className="review-invite">Оставьте пожалуйста отзыв ✨</p>}
+        {!isCancelled && !isCompleted && (
           <button className="secondary danger" onClick={cancelAppointment}>Отменить запись</button>
         )}
         {review ? (
@@ -607,7 +615,7 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
             <strong>Твоя оценка: {review.rating}/5</strong>
             {review.text && <p>{review.text}</p>}
           </div>
-        ) : !isCancelled ? (
+        ) : isCompleted ? (
           <>
             <div className="stars">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -619,6 +627,8 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
             <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Отзыв после визита можно оставить здесь" />
             <button className="primary" onClick={sendReview}>Оставить отзыв</button>
           </>
+        ) : !isCancelled ? (
+          <p className="muted">После визита Юлия отметит запись завершенной, и здесь можно будет оставить отзыв.</p>
         ) : null}
       </section>
     </main>
@@ -894,6 +904,12 @@ function AdminAppointments({ store, refresh, showToast }) {
     refresh();
   }
 
+  async function complete(id) {
+    await api(`/api/admin/appointments/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'completed' }) });
+    showToast('Запись завершена');
+    refresh();
+  }
+
   function clientMessageUrl(user) {
     if (user?.username) return `https://t.me/${String(user.username).replace('@', '')}`;
     if (user?.id) return `tg://user?id=${user.id}`;
@@ -910,12 +926,13 @@ function AdminAppointments({ store, refresh, showToast }) {
             <span>{appointment.date} в {appointment.time}</span>
             <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
           </div>
-          <em className={appointment.status}>{appointment.status}</em>
+          <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
           <div className="appointment-actions">
             {clientMessageUrl(appointment.user) && (
               <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>
             )}
-            {appointment.status !== 'cancelled' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
+            {appointment.status === 'active' && <button onClick={() => complete(appointment.id)}>Завершить</button>}
+            {appointment.status !== 'cancelled' && appointment.status !== 'completed' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
           </div>
         </div>
       ))}

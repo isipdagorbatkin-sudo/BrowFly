@@ -740,6 +740,10 @@ textarea {
   color: #ff9aa9;
 }
 
+.appointment-row em.completed {
+  color: #b9ffd6;
+}
+
 .my-appointment {
   width: 100%;
   display: grid;
@@ -774,6 +778,15 @@ textarea {
   padding: 14px;
   border-radius: 12px;
   background: rgba(255, 255, 255, .1);
+}
+
+.review-invite {
+  margin: 2px 0 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(228, 95, 192, .18);
+  color: #ffe4f8;
+  font-weight: 900;
 }
 
 .review-summary p {

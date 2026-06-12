@@ -444,6 +444,7 @@ app.put('/api/admin/schedule', requireAdmin, asyncRoute(async (req, res) => {
 }));
 
 app.patch('/api/admin/appointments/:id', requireAdmin, asyncRoute(async (req, res) => {
+  let updatedAppointment;
   const store = await updateStore((draft) => {
     const appointment = draft.appointments.find((item) => item.id === req.params.id);
     if (appointment) {
@@ -452,8 +453,24 @@ app.patch('/api/admin/appointments/:id', requireAdmin, asyncRoute(async (req, re
         appointment.cancelledBy = 'admin';
         appointment.cancelledAt = new Date().toISOString();
       }
+      if (appointment.status === 'completed') {
+        appointment.completedAt = new Date().toISOString();
+      }
+      updatedAppointment = appointment;
     }
   });
+
+  if (updatedAppointment?.status === 'completed') {
+    await sendTelegramMessage(
+      updatedAppointment.user?.id,
+      [
+        'Запись завершена!',
+        'Оставьте пожалуйста отзыв ✨',
+        'Это очень поможет Юлии и будущим клиентам.'
+      ].join('\n')
+    ).catch(() => {});
+  }
+
   res.json(store.appointments.map((appointment) => enrichAppointment(store, appointment)));
 }));
 
