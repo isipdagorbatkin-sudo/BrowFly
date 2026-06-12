@@ -7,15 +7,13 @@ import {
   ChevronRight,
   Clock,
   Copy,
-  ExternalLink,
-  ImagePlus,
   Instagram,
   Link as LinkIcon,
-  Menu,
   MessageCircle,
   Music2,
   Plus,
   Save,
+  Settings,
   Star,
   Trash2,
   Upload,
@@ -93,15 +91,6 @@ function ymd(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function serviceImage(index) {
-  const gradients = [
-    'linear-gradient(135deg, #f8c6d8, #75515f)',
-    'linear-gradient(135deg, #d9edf7, #7b748e)',
-    'linear-gradient(135deg, #fed7aa, #7f4b65)'
-  ];
-  return gradients[index % gradients.length];
-}
-
 function SocialIcon({ type }) {
   const key = String(type || '').toLowerCase();
   if (key.includes('instagram')) return <Instagram size={17} />;
@@ -141,9 +130,18 @@ function App() {
   return (
     <div className="app-shell">
       <div className="background" style={{ backgroundImage: `url(${data.profile.avatarUrl || data.profile.gallery?.[0] || ''})` }} />
-      <button className="menu-button" onClick={() => setMode(mode === 'admin' ? 'public' : isAdmin ? 'admin' : 'public')} aria-label="Меню">
-        <Menu size={24} />
-      </button>
+      {isAdmin && (
+        <button
+          className="settings-button"
+          onClick={() => {
+            setMode(mode === 'admin' ? 'public' : 'admin');
+            setBooking(false);
+          }}
+          aria-label={mode === 'admin' ? 'Закрыть настройки' : 'Настройки'}
+        >
+          {mode === 'admin' ? <X size={23} /> : <Settings size={22} />}
+        </button>
+      )}
 
       {mode === 'admin' && isAdmin ? (
         <AdminPanel data={data} reload={load} showToast={showToast} />
@@ -166,8 +164,19 @@ function App() {
 
 function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
   const { profile, rating, services } = data;
+  const socials = (profile.socials || []).filter((social) => social.url && social.label);
+  const hasProfile = Boolean(
+    profile.name ||
+    profile.title ||
+    profile.avatarUrl ||
+    profile.address ||
+    profile.description ||
+    socials.length ||
+    profile.gallery?.length
+  );
 
   async function copyAddress() {
+    if (!profile.address) return;
     await navigator.clipboard?.writeText(profile.address);
     showToast('Адрес скопирован!');
   }
@@ -177,27 +186,46 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
       <main className="content">
         <section className="hero glass">
           <div className="avatar">
-            {profile.avatarUrl ? <img src={profile.avatarUrl} alt={profile.name} /> : <UserRound size={54} />}
+            {profile.avatarUrl ? <img src={profile.avatarUrl} alt={profile.name || 'Мастер'} /> : <UserRound size={54} />}
           </div>
-          <h1>{profile.name}</h1>
-          <p className="subtitle">{profile.title}</p>
-          <div className="socials">
-            {profile.socials?.map((social) => (
-              <a key={social.id} href={social.url} target="_blank" rel="noreferrer" aria-label={social.label}>
-                <SocialIcon type={social.type || social.label} />
-              </a>
-            ))}
-          </div>
-          <div className="rating-pill">
-            <Star size={20} fill="#ffd84a" color="#ffd84a" />
-            <strong>{rating.average || 5}</strong>
-            <span>{rating.count || 0} оценок</span>
-          </div>
-          <button className="address" onClick={copyAddress}>
-            <Copy size={17} />
-            <span>{profile.address}</span>
-          </button>
-          <p className="description">{profile.description}</p>
+          {hasProfile ? (
+            <>
+              {profile.name && <h1>{profile.name}</h1>}
+              {profile.title && <p className="subtitle">{profile.title}</p>}
+
+              {socials.length > 0 && (
+                <div className="socials">
+                  {socials.map((social) => (
+                    <a key={social.id} href={social.url} target="_blank" rel="noreferrer" aria-label={social.label}>
+                      <SocialIcon type={social.type || social.label} />
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {rating.count > 0 && (
+                <div className="rating-pill">
+                  <Star size={20} fill="#ffd84a" color="#ffd84a" />
+                  <strong>{rating.average}</strong>
+                  <span>{rating.count} оценок</span>
+                </div>
+              )}
+
+              {profile.address && (
+                <button className="address" onClick={copyAddress}>
+                  <Copy size={17} />
+                  <span>{profile.address}</span>
+                </button>
+              )}
+
+              {profile.description && <p className="description">{profile.description}</p>}
+            </>
+          ) : (
+            <div className="empty-profile">
+              <h1>Профиль мастера</h1>
+              <p>Информация появится после заполнения в настройках.</p>
+            </div>
+          )}
         </section>
 
         {profile.gallery?.length > 0 && (
@@ -209,15 +237,22 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
         )}
 
         <section className="services">
-          {services.map((category, index) => (
-            <ServiceCategory
-              key={category.id}
-              category={category}
-              defaultOpen={index === 0}
-              selected={selected}
-              setSelected={setSelected}
-            />
-          ))}
+          {services.length > 0 ? (
+            services.map((category, index) => (
+              <ServiceCategory
+                key={category.id}
+                category={category}
+                defaultOpen={index === 0}
+                selected={selected}
+                setSelected={setSelected}
+              />
+            ))
+          ) : (
+            <div className="empty-services glass">
+              <h2>Услуги пока не добавлены</h2>
+              <p>Мастер скоро заполнит список услуг и расписание.</p>
+            </div>
+          )}
         </section>
       </main>
 
@@ -245,33 +280,33 @@ function ServiceCategory({ category, defaultOpen, selected, setSelected }) {
       </button>
       {open && (
         <div className="category-items">
-          {category.items.map((item) => (
-            <div className="service-card glass" key={item.id}>
-              <h3>{item.title}</h3>
-              {item.description && <p>{item.description}</p>}
-              <div className="photo-grid">
-                {[0, 1, 2].map((index) =>
-                  item.photos?.[index] ? (
-                    <img key={item.photos[index]} src={item.photos[index]} alt={item.title} />
-                  ) : (
-                    <div key={index} className="photo-placeholder" style={{ background: serviceImage(index) }}>
-                      <ImagePlus size={20} />
-                    </div>
-                  )
+          {category.items.map((item) => {
+            const photos = (item.photos || []).filter(Boolean).slice(0, 3);
+
+            return (
+              <div className="service-card glass" key={item.id}>
+                <h3>{item.title}</h3>
+                {item.description && <p>{item.description}</p>}
+                {photos.length > 0 && (
+                  <div className="photo-grid">
+                    {photos.map((photo) => (
+                      <img key={photo} src={photo} alt={item.title} />
+                    ))}
+                  </div>
                 )}
+                <div className="service-actions">
+                  <span>{minutes(item.durationMinutes)}</span>
+                  <strong>{money(item.price)}</strong>
+                  <button
+                    className={selected?.id === item.id ? 'selected' : ''}
+                    onClick={() => setSelected(item)}
+                  >
+                    {selected?.id === item.id ? 'Выбрано' : 'Записаться'}
+                  </button>
+                </div>
               </div>
-              <div className="service-actions">
-                <span>{minutes(item.durationMinutes)}</span>
-                <strong>{money(item.price)}</strong>
-                <button
-                  className={selected?.id === item.id ? 'selected' : ''}
-                  onClick={() => setSelected(item)}
-                >
-                  {selected?.id === item.id ? 'Выбрано' : 'Записаться'}
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </article>

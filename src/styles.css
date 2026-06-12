@@ -63,11 +63,11 @@ button {
   font-weight: 800;
 }
 
-.menu-button {
+.settings-button {
   position: fixed;
   z-index: 20;
   top: max(16px, env(safe-area-inset-top));
-  left: 18px;
+  right: 18px;
   width: 42px;
   height: 42px;
   border-radius: 10px;
@@ -200,6 +200,36 @@ p {
   line-height: 1.55;
   font-weight: 700;
   white-space: pre-line;
+}
+
+.empty-profile {
+  min-height: 300px;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+}
+
+.empty-profile h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.empty-profile p,
+.empty-services p {
+  margin: 0;
+  color: rgba(255, 255, 255, .72);
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.empty-services {
+  padding: 22px;
+  border-radius: 16px;
+}
+
+.empty-services h2 {
+  margin-bottom: 8px;
+  font-size: 20px;
 }
 
 .gallery-row {

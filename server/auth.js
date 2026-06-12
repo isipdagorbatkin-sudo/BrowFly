@@ -35,7 +35,8 @@ export function getRequestUser(req) {
   const user = parseTelegramInitData(initData, process.env.BOT_TOKEN);
   if (user) return user;
 
-  if (process.env.ALLOW_DEV_AUTH !== 'false') {
+  const allowDevAuth = process.env.ALLOW_DEV_AUTH === 'true' && process.env.VERCEL !== '1';
+  if (allowDevAuth) {
     const devUser = req.get('x-dev-user');
     if (devUser) {
       try {
