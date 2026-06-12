@@ -1,7 +1,7 @@
 import { Telegraf, Markup } from 'telegraf';
 import { readStore, updateStore } from './store.js';
 import { isAdminUser } from './auth.js';
-import { findService, toDateTime } from './availability.js';
+import { getAppointmentServiceIds, getServicesSummary, toDateTime } from './availability.js';
 
 let bot = null;
 
@@ -56,7 +56,8 @@ export function startBot() {
 export async function notifyAdminAboutAppointment(appointment) {
   if (!bot) return;
   const store = await readStore();
-  const service = findService(store, appointment.serviceId)?.service;
+  const summary = getServicesSummary(store, getAppointmentServiceIds(appointment));
+  const services = summary.services.map((service) => service.title).join(', ') || appointment.serviceId;
   const chatIds = store.adminChatIds || [];
 
   await Promise.allSettled(
@@ -66,10 +67,10 @@ export async function notifyAdminAboutAppointment(appointment) {
         [
           '\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u043f\u0438\u0441\u044c',
           `\u041a\u043b\u0438\u0435\u043d\u0442: ${appointment.user?.first_name || '\u041a\u043b\u0438\u0435\u043d\u0442'} ${appointment.user?.username ? `@${appointment.user.username}` : ''}`,
-          `\u0423\u0441\u043b\u0443\u0433\u0430: ${service?.title || appointment.serviceId}`,
+          `\u0423\u0441\u043b\u0443\u0433\u0438: ${services}`,
           `\u0414\u0430\u0442\u0430: ${appointment.date}`,
           `\u0412\u0440\u0435\u043c\u044f: ${appointment.time}`,
-          `\u0426\u0435\u043d\u0430: ${service?.price || 0} \u20bd`
+          `\u0426\u0435\u043d\u0430: ${summary.totalPrice || 0} \u20bd`
         ].join('\n')
       )
     )
@@ -91,10 +92,11 @@ export function startReminderLoop() {
 
       const startsAt = toDateTime(appointment.date, appointment.time);
       if (startsAt >= windowStart && startsAt <= windowEnd) {
-        const service = findService(store, appointment.serviceId)?.service;
+        const summary = getServicesSummary(store, getAppointmentServiceIds(appointment));
+        const services = summary.services.map((service) => service.title).join(', ') || '\u0423\u0441\u043b\u0443\u0433\u0430';
         await bot.telegram.sendMessage(
           appointment.user.id,
-          `\u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u0435: \u0447\u0435\u0440\u0435\u0437 3 \u0447\u0430\u0441\u0430 \u0437\u0430\u043f\u0438\u0441\u044c \u043a \u042e\u043b\u0438\u0438. ${service?.title || '\u0423\u0441\u043b\u0443\u0433\u0430'} \u0432 ${appointment.time}, ${appointment.date}.`
+          `\u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u0435: \u0447\u0435\u0440\u0435\u0437 3 \u0447\u0430\u0441\u0430 \u0437\u0430\u043f\u0438\u0441\u044c \u043a \u042e\u043b\u0438\u0438. ${services} \u0432 ${appointment.time}, ${appointment.date}.`
         );
         await updateStore((draft) => {
           const current = draft.appointments.find((item) => item.id === appointment.id);

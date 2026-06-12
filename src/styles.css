@@ -262,7 +262,7 @@ p {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  margin: 18px 0;
+  margin: 26px 0 24px;
 }
 
 .gallery-row img {
@@ -274,6 +274,7 @@ p {
 .services {
   display: grid;
   gap: 10px;
+  margin-top: 22px;
 }
 
 .category-head {
@@ -547,6 +548,12 @@ p {
 
 .done-card .secondary {
   margin-top: 8px;
+}
+
+.secondary.danger {
+  background: rgba(255, 112, 137, .18);
+  color: #ffd8df;
+  border: 1px solid rgba(255, 112, 137, .28);
 }
 
 .stars {

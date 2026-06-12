@@ -82,6 +82,23 @@ function minutes(value) {
   return `${mins} м`;
 }
 
+function serviceSummary(services = []) {
+  return {
+    totalPrice: services.reduce((sum, service) => sum + Number(service.price || 0), 0),
+    totalDurationMinutes: services.reduce((sum, service) => sum + Number(service.durationMinutes || 0), 0),
+    title: services.map((service) => service.title).filter(Boolean).join(', ')
+  };
+}
+
+function appointmentServices(appointment) {
+  if (appointment.services?.length) return appointment.services;
+  return appointment.service ? [appointment.service] : [];
+}
+
+function appointmentTitle(appointment) {
+  return appointmentServices(appointment).map((service) => service.title).filter(Boolean).join(', ') || 'Услуга';
+}
+
 function monthLabel(date) {
   return date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 }
@@ -104,7 +121,7 @@ function App() {
   const [data, setData] = useState(null);
   const [mode, setMode] = useState('public');
   const [publicTab, setPublicTab] = useState('profile');
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState([]);
   const [booking, setBooking] = useState(false);
   const [toast, setToast] = useState('');
   const user = getUser();
@@ -147,13 +164,13 @@ function App() {
 
       {mode === 'admin' && isAdmin ? (
         <AdminPanel data={data} reload={load} showToast={showToast} />
-      ) : booking && selected ? (
+      ) : booking && selected.length > 0 ? (
         <BookingFlow
           selected={selected}
           onBack={() => setBooking(false)}
           onBooked={async () => {
             setBooking(false);
-            setSelected(null);
+            setSelected([]);
             setPublicTab('appointments');
             await load();
           }}
@@ -183,6 +200,7 @@ function App() {
 
 function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
   const { profile, rating, services } = data;
+  const summary = serviceSummary(selected);
   const socials = (profile.socials || []).filter((social) => social.url && social.label);
   const hasProfile = Boolean(
     profile.name ||
@@ -275,12 +293,12 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
         </section>
       </main>
 
-      {selected && (
+      {selected.length > 0 && (
         <div className="bottom-bar">
           <div>
             <span>Итого</span>
-            <strong>{money(selected.price)}</strong>
-            <em>{minutes(selected.durationMinutes)}</em>
+            <strong>{money(summary.totalPrice)}</strong>
+            <em>{minutes(summary.totalDurationMinutes)}</em>
           </div>
           <button onClick={onContinue}>Продолжить →</button>
         </div>
@@ -291,6 +309,14 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
 
 function ServiceCategory({ category, defaultOpen, selected, setSelected }) {
   const [open, setOpen] = useState(defaultOpen);
+  function toggleService(service) {
+    setSelected((current) => (
+      current.some((item) => item.id === service.id)
+        ? current.filter((item) => item.id !== service.id)
+        : [...current, service]
+    ));
+  }
+
   return (
     <article className="category">
       <button className="category-head glass" onClick={() => setOpen(!open)}>
@@ -301,6 +327,7 @@ function ServiceCategory({ category, defaultOpen, selected, setSelected }) {
         <div className="category-items">
           {category.items.map((item) => {
             const photos = (item.photos || []).filter(Boolean).slice(0, 3);
+            const isSelected = selected.some((service) => service.id === item.id);
 
             return (
               <div className="service-card glass" key={item.id}>
@@ -317,10 +344,10 @@ function ServiceCategory({ category, defaultOpen, selected, setSelected }) {
                   <span>{minutes(item.durationMinutes)}</span>
                   <strong>{money(item.price)}</strong>
                   <button
-                  className={selected?.id === item.id ? 'selected' : ''}
-                  onClick={() => setSelected(selected?.id === item.id ? null : item)}
+                  className={isSelected ? 'selected' : ''}
+                  onClick={() => toggleService(item)}
                 >
-                    {selected?.id === item.id ? 'Выбрано' : 'Записаться'}
+                    {isSelected ? 'Выбрано' : 'Записаться'}
                   </button>
                 </div>
               </div>
@@ -339,10 +366,13 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
   const [slots, setSlots] = useState([]);
   const [time, setTime] = useState('');
   const [done, setDone] = useState(null);
+  const summary = serviceSummary(selected);
+  const serviceIds = selected.map((service) => service.id);
+  const serviceQuery = encodeURIComponent(serviceIds.join(','));
 
   useEffect(() => {
     loadMonth();
-  }, [month, selected.id]);
+  }, [month, serviceQuery]);
 
   useEffect(() => {
     if (date) loadSlots(date);
@@ -350,14 +380,14 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
 
   async function loadMonth() {
     const key = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
-    const result = await api(`/api/public/availability?serviceId=${selected.id}&month=${key}`);
+    const result = await api(`/api/public/availability?serviceIds=${serviceQuery}&month=${key}`);
     setDays(result.days);
     const firstAvailable = result.days.find((day) => day.available);
     setDate((current) => current || firstAvailable?.date || '');
   }
 
   async function loadSlots(nextDate) {
-    const result = await api(`/api/public/slots?serviceId=${selected.id}&date=${nextDate}`);
+    const result = await api(`/api/public/slots?serviceIds=${serviceQuery}&date=${nextDate}`);
     setSlots(result.slots);
     setTime('');
   }
@@ -365,7 +395,7 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
   async function book() {
     const result = await api('/api/appointments', {
       method: 'POST',
-      body: JSON.stringify({ serviceId: selected.id, date, time, user: getUser() })
+      body: JSON.stringify({ serviceIds, date, time, user: getUser() })
     });
     setDone(result.appointment);
     showToast('Запись создана!');
@@ -423,8 +453,8 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
       <div className="bottom-bar">
         <div>
           <span>Итого</span>
-          <strong>{money(selected.price)}</strong>
-          <em>{minutes(selected.durationMinutes)}</em>
+          <strong>{money(summary.totalPrice)}</strong>
+          <em>{minutes(summary.totalDurationMinutes)}</em>
         </div>
         <button disabled={!date || !time} onClick={book}>
           {date ? `Записаться ${date.slice(8, 10)}.${date.slice(5, 7)}` : 'Записаться'}
@@ -450,12 +480,14 @@ function SlotGroup({ title, slots, time, setTime }) {
 }
 
 function BookingCreated({ appointment, selected, onBack, onBooked }) {
+  const summary = serviceSummary(selected);
   return (
     <main className="content">
       <section className="done-card glass">
         <CalendarDays size={36} />
         <h2>Запись создана!</h2>
-        <p>{selected.title}, {appointment.date} в {appointment.time}</p>
+        <p>{summary.title}, {appointment.date} в {appointment.time}</p>
+        <p>{money(summary.totalPrice)} · {minutes(summary.totalDurationMinutes)}</p>
         <p>Посмотреть ее можно во вкладке «Мои записи».</p>
         <button className="primary" onClick={onBooked}>Мои записи</button>
         <button className="secondary" onClick={onBack}>Вернуться на главную</button>
@@ -491,6 +523,10 @@ function MyAppointments({ data, reload, showToast }) {
         appointment={active}
         onBack={() => setActive(null)}
         onReviewed={refreshAll}
+        onCancelled={(appointment) => {
+          setActive(appointment);
+          refreshAll();
+        }}
         showToast={showToast}
       />
     );
@@ -504,7 +540,7 @@ function MyAppointments({ data, reload, showToast }) {
         {!loading && appointments.length === 0 && <p className="muted">Записей пока нет.</p>}
         {appointments.map((appointment) => (
           <button className="my-appointment" key={appointment.id} onClick={() => setActive(appointment)}>
-            <strong>{appointment.service?.title || 'Услуга'}</strong>
+            <strong>{appointmentTitle(appointment)}</strong>
             <span>{appointment.date} в {appointment.time}</span>
             <em>{appointment.status === 'cancelled' ? 'Отменена' : appointment.review ? 'Отзыв оставлен' : 'Открыть'}</em>
           </button>
@@ -514,10 +550,14 @@ function MyAppointments({ data, reload, showToast }) {
   );
 }
 
-function AppointmentDetails({ appointment, onBack, onReviewed, showToast }) {
+function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, showToast }) {
   const [rating, setRating] = useState(5);
   const [text, setText] = useState('');
   const [review, setReview] = useState(appointment.review);
+  const isCancelled = appointment.status === 'cancelled';
+  const services = appointmentServices(appointment);
+  const totalPrice = appointment.totalPrice || services.reduce((sum, service) => sum + Number(service.price || 0), 0);
+  const totalDuration = appointment.totalDurationMinutes || services.reduce((sum, service) => sum + Number(service.durationMinutes || 0), 0);
 
   async function sendReview() {
     const result = await api('/api/reviews', {
@@ -529,6 +569,15 @@ function AppointmentDetails({ appointment, onBack, onReviewed, showToast }) {
     showToast('Спасибо за отзыв!');
   }
 
+  async function cancelAppointment() {
+    const result = await api(`/api/my/appointments/${appointment.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'cancelled', user: getUser() })
+    });
+    showToast('Запись отменена');
+    onCancelled(result.appointment);
+  }
+
   return (
     <main className="content">
       <section className="done-card glass">
@@ -537,15 +586,19 @@ function AppointmentDetails({ appointment, onBack, onReviewed, showToast }) {
           Назад
         </button>
         <CalendarDays size={34} />
-        <h2>{appointment.service?.title || 'Запись'}</h2>
+        <h2>{appointmentTitle(appointment)}</h2>
         <p>{appointment.date} в {appointment.time}</p>
-        {appointment.service?.price ? <p>{money(appointment.service.price)} · {minutes(appointment.service.durationMinutes)}</p> : null}
+        {totalPrice || totalDuration ? <p>{money(totalPrice)} · {minutes(totalDuration)}</p> : null}
+        {isCancelled && <p className="muted">Эта запись отменена.</p>}
+        {!isCancelled && (
+          <button className="secondary danger" onClick={cancelAppointment}>Отменить запись</button>
+        )}
         {review ? (
           <div className="review-summary">
             <strong>Твоя оценка: {review.rating}/5</strong>
             {review.text && <p>{review.text}</p>}
           </div>
-        ) : (
+        ) : !isCancelled ? (
           <>
             <div className="stars">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -557,7 +610,7 @@ function AppointmentDetails({ appointment, onBack, onReviewed, showToast }) {
             <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Отзыв после визита можно оставить здесь" />
             <button className="primary" onClick={sendReview}>Оставить отзыв</button>
           </>
-        )}
+        ) : null}
       </section>
     </main>
   );
@@ -654,7 +707,7 @@ function AdminProfile({ store, refresh, showToast }) {
             socials[index] = { ...social, label: event.target.value, type: event.target.value };
             setProfile({ ...profile, socials });
           }} />
-          <input value={social.url} placeholder="Ссылка" onChange={(event) => {
+          <input value={social.url} placeholder="Ссылка или @username" onChange={(event) => {
             const socials = [...profile.socials];
             socials[index] = { ...social, url: event.target.value };
             setProfile({ ...profile, socials });
@@ -821,6 +874,10 @@ function AdminSchedule({ store, refresh, showToast }) {
 
 function AdminAppointments({ store, refresh, showToast }) {
   const services = new Map(store.services.flatMap((category) => category.items.map((item) => [item.id, item])));
+  function getAppointmentServices(appointment) {
+    const ids = appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId].filter(Boolean);
+    return ids.map((id) => services.get(id)).filter(Boolean);
+  }
 
   async function cancel(id) {
     await api(`/api/admin/appointments/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'cancelled' }) });
@@ -840,7 +897,7 @@ function AdminAppointments({ store, refresh, showToast }) {
       {store.appointments.map((appointment) => (
         <div className="appointment-row" key={appointment.id}>
           <div className="appointment-info">
-            <strong>{services.get(appointment.serviceId)?.title || appointment.serviceId}</strong>
+            <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
             <span>{appointment.date} в {appointment.time}</span>
             <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
           </div>
