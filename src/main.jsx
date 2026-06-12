@@ -892,13 +892,13 @@ function AdminSchedule({ store, refresh, showToast }) {
   return (
     <section className="admin-card glass">
       <h3>Свободные окошки на неделю</h3>
-      <div className="inline-fields">
+      <div className="inline-fields week-nav-fields">
         <button onClick={() => setWeekStart(ymd(addDays(new Date(`${weekStart}T00:00:00`), -7)))}><ChevronLeft size={16} /></button>
         <input type="date" value={weekStart} onChange={(event) => setWeekStart(ymd(mondayOf(new Date(`${event.target.value}T00:00:00`))))} />
         <button onClick={() => setWeekStart(ymd(addDays(new Date(`${weekStart}T00:00:00`), 7)))}><ChevronRight size={16} /></button>
       </div>
 
-      <div className="inline-fields">
+      <div className="inline-fields slot-add-fields">
         <input type="date" value={slotDate} onChange={(event) => setSlotDate(event.target.value)} />
         <input type="time" value={slotTime} onChange={(event) => setSlotTime(event.target.value)} />
         <button onClick={() => addSlot()}>Добавить окошко</button>

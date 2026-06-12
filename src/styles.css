@@ -678,6 +678,24 @@ textarea {
   gap: 8px;
 }
 
+.week-nav-fields {
+  grid-template-columns: 1fr 1.35fr 1fr;
+}
+
+.week-nav-fields input {
+  min-width: 0;
+  text-align: center;
+}
+
+.slot-add-fields {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) minmax(112px, auto);
+}
+
+.slot-add-fields button {
+  white-space: normal;
+  line-height: 1.08;
+}
+
 .admin-category,
 .admin-service {
   display: grid;
@@ -844,6 +862,20 @@ textarea {
 }
 
 @media (max-width: 420px) {
+  .week-nav-fields {
+    grid-template-columns: 1fr 1.4fr 1fr;
+  }
+
+  .slot-add-fields {
+    grid-template-columns: 1fr 96px;
+  }
+
+  .slot-add-fields button {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 44px;
+  }
+
   .week-day-card {
     grid-template-columns: 1fr;
   }
