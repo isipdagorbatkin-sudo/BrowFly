@@ -679,7 +679,7 @@ textarea {
 }
 
 .week-nav-fields {
-  grid-template-columns: 1fr 1.35fr 1fr;
+  grid-template-columns: 46px minmax(0, 1fr) 46px;
 }
 
 .week-nav-fields input {
@@ -688,12 +688,28 @@ textarea {
 }
 
 .slot-add-fields {
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) minmax(112px, auto);
+  grid-template-columns: minmax(0, 1fr) 72px;
 }
 
 .slot-add-fields button {
+  grid-column: 1 / -1;
+  min-height: 38px;
   white-space: normal;
   line-height: 1.08;
+}
+
+.compact-date-input,
+.compact-time-input {
+  min-width: 0;
+  height: 44px;
+  padding: 8px 10px;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+}
+
+.compact-time-input {
+  padding-inline: 6px;
 }
 
 .admin-category,
@@ -863,17 +879,15 @@ textarea {
 
 @media (max-width: 420px) {
   .week-nav-fields {
-    grid-template-columns: 1fr 1.4fr 1fr;
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
   }
 
   .slot-add-fields {
-    grid-template-columns: 1fr 96px;
+    grid-template-columns: minmax(0, 1fr) 70px;
   }
 
   .slot-add-fields button {
-    grid-column: 1 / -1;
     width: 100%;
-    min-height: 44px;
   }
 
   .week-day-card {
