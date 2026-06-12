@@ -151,6 +151,7 @@ function formatAppointmentMessage(title, store, appointment) {
   ];
 
   if (appointment.comment) rows.push(`Комментарий: ${appointment.comment}`);
+  if (appointment.referenceUrl) rows.push(`Референс: ${appointment.referenceUrl}`);
 
   return rows.join('\n');
 }
@@ -287,6 +288,7 @@ app.post('/api/appointments', asyncRoute(async (req, res) => {
   const user = getRequestUser(req) || req.body.user || {};
   const { date, time } = req.body;
   const comment = String(req.body.comment || '').trim().slice(0, 500);
+  const referenceUrl = String(req.body.referenceUrl || '').trim().slice(0, 1000);
   const serviceIds = getRequestedServiceIds(req);
 
   if (!hasAllServices(store, serviceIds)) {
@@ -306,6 +308,7 @@ app.post('/api/appointments', asyncRoute(async (req, res) => {
       date,
       time,
       comment,
+      referenceUrl,
       user,
       status: 'active',
       createdAt: new Date().toISOString()
@@ -560,6 +563,17 @@ app.patch('/api/admin/appointments/:id', requireAdmin, asyncRoute(async (req, re
   }
 
   res.json(store.appointments.map((appointment) => enrichAppointment(store, appointment)));
+}));
+
+app.post('/api/uploads/reference', upload.single('file'), asyncRoute(async (req, res) => {
+  const user = getRequestUser(req);
+  if (!user) return res.status(401).json({ error: 'Нужно открыть приложение через Telegram' });
+
+  if (!req.file || !String(req.file.mimetype || '').startsWith('image/')) {
+    return res.status(400).json({ error: 'Нужна картинка' });
+  }
+
+  res.status(201).json({ url: await saveUpload(req.file) });
 }));
 
 app.post('/api/admin/upload', requireAdmin, upload.single('file'), asyncRoute(async (req, res) => {

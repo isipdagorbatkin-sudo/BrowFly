@@ -70,6 +70,18 @@ async function uploadFile(file) {
   return data.url;
 }
 
+async function uploadReferenceFile(file) {
+  const form = new FormData();
+  form.append('file', file);
+  const headers = {};
+  if (tg?.initData) headers['x-telegram-init-data'] = tg.initData;
+  if (!tg?.initData) headers['x-dev-user'] = encodeDevUser(getUser());
+  const response = await fetch('/api/uploads/reference', { method: 'POST', headers, body: form });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error || 'Не удалось загрузить референс');
+  return data.url;
+}
+
 function money(value) {
   return `${Number(value || 0).toLocaleString('ru-RU')} ₽`;
 }
@@ -419,6 +431,7 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
   const [slots, setSlots] = useState([]);
   const [time, setTime] = useState('');
   const [comment, setComment] = useState('');
+  const [referenceUrl, setReferenceUrl] = useState('');
   const [done, setDone] = useState(null);
   const summary = serviceSummary(selected);
   const serviceIds = selected.map((service) => service.id);
@@ -449,10 +462,24 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
   async function book() {
     const result = await api('/api/appointments', {
       method: 'POST',
-      body: JSON.stringify({ serviceIds, date, time, comment, user: getUser() })
+      body: JSON.stringify({ serviceIds, date, time, comment, referenceUrl, user: getUser() })
     });
     setDone(result.appointment);
     showToast('Запись создана!');
+  }
+
+  async function uploadReference() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const url = await uploadReferenceFile(file);
+      setReferenceUrl(url);
+      showToast('Референс загружен');
+    };
+    input.click();
   }
 
   const calendarCells = useMemo(() => {
@@ -506,6 +533,7 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
         <section className="slots-card glass">
           <label className="booking-comment">
             Комментарий к записи
+            <span>Например, загрузите референс и напишите пожелания к процедуре.</span>
             <textarea
               value={comment}
               onChange={(event) => setComment(event.target.value)}
@@ -513,6 +541,12 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
               placeholder="Например: хочу натуральный эффект, есть чувствительность, буду на 5 минут позже"
             />
           </label>
+          <div className="reference-upload">
+            {referenceUrl ? <img src={referenceUrl} alt="Референс" /> : <div><Upload size={22} /> Референс</div>}
+            <button className="secondary" onClick={uploadReference}>
+              <Upload size={16} /> {referenceUrl ? 'Заменить фото' : 'Загрузить фото'}
+            </button>
+          </div>
         </section>
       </main>
       <div className="bottom-bar">
@@ -659,6 +693,12 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
           <div className="appointment-comment">
             <strong>Комментарий</strong>
             <p>{appointment.comment}</p>
+          </div>
+        )}
+        {appointment.referenceUrl && (
+          <div className="appointment-comment">
+            <strong>Референс</strong>
+            <img className="appointment-reference" src={appointment.referenceUrl} alt="Референс к записи" />
           </div>
         )}
         {appointment.confirmedAt && <p className="confirm-note">Запись подтверждена ✅</p>}
@@ -1003,6 +1043,9 @@ function AdminAppointments({ store, refresh, showToast }) {
             <span>{appointment.date} в {appointment.time}</span>
             <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
             {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
+            {appointment.referenceUrl && (
+              <a className="reference-link" href={appointment.referenceUrl} target="_blank" rel="noreferrer">Открыть референс</a>
+            )}
             {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
           </div>
           <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
