@@ -1,0 +1,21 @@
+name: Appointment reminders
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger reminder endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          REMINDER_URL: https://brow-fly.vercel.app/api/cron/reminders
+        run: |
+          if [ -n "$CRON_SECRET" ]; then
+            curl -fsS -H "Authorization: Bearer $CRON_SECRET" "$REMINDER_URL"
+          else
+            curl -fsS "$REMINDER_URL"
+          fi

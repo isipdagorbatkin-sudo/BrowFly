@@ -12,7 +12,6 @@ import {
   toDateTime
 } from './availability.js';
 import { makeId, readStore, updateStore } from './store.js';
-import { notifyAdminAboutAppointment } from './bot.js';
 import { ensureLocalUploadsDir, makeUploadMiddleware, saveUpload } from './storage.js';
 
 const app = express();
@@ -101,7 +100,7 @@ function normalizeProfile(profile, fallback) {
   };
 }
 
-async function sendTelegramMessage(chatId, text) {
+async function sendTelegramMessage(chatId, text, extra = {}) {
   if (!process.env.BOT_TOKEN || !chatId) return { ok: false, skipped: true };
 
   const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
@@ -110,17 +109,91 @@ async function sendTelegramMessage(chatId, text) {
     body: JSON.stringify({
       chat_id: chatId,
       text,
-      disable_web_page_preview: true
+      disable_web_page_preview: true,
+      ...extra
     })
   });
 
   return response.json().catch(() => ({ ok: response.ok }));
 }
 
+function formatAppointmentMessage(title, store, appointment) {
+  const enriched = enrichAppointment(store, appointment);
+  const services = enriched.services.map((service) => service.title).join(', ') || 'услуга';
+  return [
+    title,
+    `Услуги: ${services}`,
+    `Дата: ${appointment.date}`,
+    `Время: ${appointment.time}`,
+    `Итого: ${enriched.totalPrice || 0} ₽`,
+    `Длительность: ${enriched.totalDurationMinutes || 0} мин`
+  ].join('\n');
+}
+
+async function notifyAppointmentCreated(store, appointment) {
+  const clientMessage = [
+    'Запись создана!',
+    formatAppointmentMessage('Информация о записи', store, appointment),
+    '',
+    'Посмотреть запись можно во вкладке «Мои записи».'
+  ].join('\n');
+
+  const adminMessage = [
+    'Новая запись',
+    `Клиент: ${appointment.user?.first_name || 'Клиент'} ${appointment.user?.username ? `@${appointment.user.username}` : ''}`,
+    formatAppointmentMessage('Детали', store, appointment)
+  ].join('\n');
+
+  await Promise.allSettled([
+    sendTelegramMessage(appointment.user?.id, clientMessage),
+    ...(store.adminChatIds || []).map((chatId) => sendTelegramMessage(chatId, adminMessage))
+  ]);
+}
+
 app.get('/api/me', (req, res) => {
   const user = getRequestUser(req);
   res.json({ user, isAdmin: isAdminUser(user) });
 });
+
+app.post('/api/telegram/webhook', asyncRoute(async (req, res) => {
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (secret && req.get('x-telegram-bot-api-secret-token') !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const message = req.body?.message || req.body?.edited_message;
+  const chatId = message?.chat?.id;
+  const user = message?.from;
+  const text = String(message?.text || '');
+
+  if (!chatId || !user) return res.json({ ok: true });
+
+  if (isAdminUser(user)) {
+    await updateStore((draft) => {
+      draft.adminChatIds = [...new Set([...(draft.adminChatIds || []), chatId])];
+    });
+  }
+
+  if (text.startsWith('/start') || text.startsWith('/admin')) {
+    const webAppUrl = process.env.PUBLIC_WEBAPP_URL || 'https://brow-fly.vercel.app/';
+    const url = isAdminUser(user) ? `${webAppUrl}?admin=1` : webAppUrl;
+    await sendTelegramMessage(
+      chatId,
+      isAdminUser(user)
+        ? 'Админка подключена. Теперь сюда будут приходить новые записи.'
+        : 'Привет! Здесь можно записаться к Юлии и получать уведомления о записи.',
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: isAdminUser(user) ? 'Открыть админку' : 'Открыть запись', web_app: { url } }
+          ]]
+        }
+      }
+    );
+  }
+
+  res.json({ ok: true });
+}));
 
 app.get('/api/public/profile', asyncRoute(async (_req, res) => {
   res.json(publicPayload(await readStore()));
@@ -170,7 +243,7 @@ app.post('/api/appointments', asyncRoute(async (req, res) => {
   }
 
   let appointment;
-  await updateStore((draft) => {
+  const nextStore = await updateStore((draft) => {
     appointment = {
       id: makeId('apt'),
       serviceId: serviceIds[0],
@@ -184,8 +257,8 @@ app.post('/api/appointments', asyncRoute(async (req, res) => {
     draft.appointments.push(appointment);
   });
 
-  await notifyAdminAboutAppointment(appointment).catch(() => {});
-  res.status(201).json({ appointment: enrichAppointment(store, appointment) });
+  await notifyAppointmentCreated(nextStore, appointment).catch(() => {});
+  res.status(201).json({ appointment: enrichAppointment(nextStore, appointment) });
 }));
 
 function sameUser(left = {}, right = {}) {
