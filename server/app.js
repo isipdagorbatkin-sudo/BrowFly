@@ -421,7 +421,7 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
 
   const store = await readStore();
   const now = new Date();
-  const windowStart = new Date(now.getTime() + 24 * 60 * 60_000 - 5 * 60_000);
+  const windowStart = now;
   const windowEnd = new Date(now.getTime() + 24 * 60 * 60_000 + 10 * 60_000);
   const due = store.appointments.filter((appointment) => {
     if (appointment.status === 'cancelled' || appointment.status === 'completed' || appointment.reminder24SentAt || !appointment.user?.id) return false;
@@ -435,7 +435,7 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
       const services = enriched.services.map((service) => service.title).join(', ') || 'услуга';
       const clientMessage = [
         'Напоминание о записи',
-        `Завтра запись к Юлии: ${services}.`,
+        `Скоро запись к Юлии: ${services}.`,
         `Дата: ${appointment.date}`,
         `Время: ${appointment.time}`,
         '',
@@ -443,7 +443,7 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
       ].join('\n');
       const adminMessage = [
         'Напоминание мастеру',
-        `Завтра запись: ${services}.`,
+        `Предстоящая запись: ${services}.`,
         `Клиент: ${appointment.user?.first_name || 'Клиент'} ${appointment.user?.username ? `@${appointment.user.username}` : ''}`,
         `Дата: ${appointment.date}`,
         `Время: ${appointment.time}`

@@ -82,7 +82,7 @@ export function startReminderLoop() {
     if (!bot) return;
     const store = await readStore();
     const now = new Date();
-    const windowStart = new Date(now.getTime() + 24 * 60 * 60_000 - 60_000);
+    const windowStart = now;
     const windowEnd = new Date(now.getTime() + 24 * 60 * 60_000 + 60_000);
 
     for (const appointment of store.appointments) {
