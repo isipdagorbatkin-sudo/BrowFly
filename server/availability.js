@@ -7,7 +7,10 @@ export function formatDate(date) {
 }
 
 export function toDateTime(date, time) {
-  return new Date(`${date}T${time}:00`);
+  const [year, month, day] = String(date).split('-').map(Number);
+  const [hours, minutes] = String(time).split(':').map(Number);
+
+  return new Date(Date.UTC(year, month - 1, day, hours - 3, minutes || 0, 0));
 }
 
 function overlaps(startA, endA, startB, endB) {
@@ -58,9 +61,12 @@ export function getAvailableSlots(store, date, serviceIds) {
   const duration = summary.totalDurationMinutes || 60;
   const day = new Date(`${date}T00:00:00`);
   const dow = String(day.getDay());
-  const baseSlots = store.schedule.workDays[dow] || [];
+  const hasDateSlots = store.schedule.dateSlots && Object.keys(store.schedule.dateSlots).length > 0;
+  const baseSlots = hasDateSlots
+    ? store.schedule.dateSlots[date] || []
+    : store.schedule.workDays[dow] || [];
 
-  if (store.schedule.blockedDates.includes(date)) return [];
+  if ((store.schedule.blockedDates || []).includes(date)) return [];
 
   const now = new Date();
   return baseSlots.filter((time) => {

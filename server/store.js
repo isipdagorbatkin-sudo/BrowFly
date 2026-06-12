@@ -22,6 +22,7 @@ const defaultStore = {
   services: [],
   schedule: {
     timezone: 'Europe/Moscow',
+    dateSlots: {},
     workDays: {
       '1': [],
       '2': [],

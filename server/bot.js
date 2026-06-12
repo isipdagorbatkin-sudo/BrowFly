@@ -82,11 +82,11 @@ export function startReminderLoop() {
     if (!bot) return;
     const store = await readStore();
     const now = new Date();
-    const windowStart = new Date(now.getTime() + 3 * 60 * 60_000 - 60_000);
-    const windowEnd = new Date(now.getTime() + 3 * 60 * 60_000 + 60_000);
+    const windowStart = new Date(now.getTime() + 24 * 60 * 60_000 - 60_000);
+    const windowEnd = new Date(now.getTime() + 24 * 60 * 60_000 + 60_000);
 
     for (const appointment of store.appointments) {
-      if (appointment.status === 'cancelled' || appointment.reminderSentAt || !appointment.user?.id) {
+      if (appointment.status === 'cancelled' || appointment.status === 'completed' || appointment.reminder24SentAt || !appointment.user?.id) {
         continue;
       }
 
@@ -96,11 +96,11 @@ export function startReminderLoop() {
         const services = summary.services.map((service) => service.title).join(', ') || '\u0423\u0441\u043b\u0443\u0433\u0430';
         await bot.telegram.sendMessage(
           appointment.user.id,
-          `\u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u0435: \u0447\u0435\u0440\u0435\u0437 3 \u0447\u0430\u0441\u0430 \u0437\u0430\u043f\u0438\u0441\u044c \u043a \u042e\u043b\u0438\u0438. ${services} \u0432 ${appointment.time}, ${appointment.date}.`
+          `\u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u0435: \u0437\u0430\u0432\u0442\u0440\u0430 \u0437\u0430\u043f\u0438\u0441\u044c \u043a \u042e\u043b\u0438\u0438. ${services} \u0432 ${appointment.time}, ${appointment.date}.`
         );
         await updateStore((draft) => {
           const current = draft.appointments.find((item) => item.id === appointment.id);
-          if (current) current.reminderSentAt = new Date().toISOString();
+          if (current) current.reminder24SentAt = new Date().toISOString();
         });
       }
     }

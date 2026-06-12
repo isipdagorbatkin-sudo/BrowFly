@@ -114,6 +114,27 @@ function ymd(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function mondayOf(date) {
+  const next = new Date(date);
+  const offset = (next.getDay() + 6) % 7;
+  next.setDate(next.getDate() - offset);
+  return next;
+}
+
+function shortDateLabel(value) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString('ru-RU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short'
+  });
+}
+
 function detectSocialType(social = {}) {
   const key = `${social.type || ''} ${social.label || ''} ${social.url || ''}`.toLowerCase();
   if (key.includes('instagram.com') || key.includes('instagr.am') || key.includes('instagram') || key.includes('инст')) return 'instagram';
@@ -835,11 +856,11 @@ function AdminServices({ store, refresh, showToast }) {
 
 function AdminSchedule({ store, refresh, showToast }) {
   const [schedule, setSchedule] = useState(store.schedule);
-  const [blockDate, setBlockDate] = useState(ymd(new Date()));
-  const [blockTime, setBlockTime] = useState('10:00');
-  const week = [
-    ['1', 'Пн'], ['2', 'Вт'], ['3', 'Ср'], ['4', 'Чт'], ['5', 'Пт'], ['6', 'Сб'], ['0', 'Вс']
-  ];
+  const [weekStart, setWeekStart] = useState(ymd(mondayOf(new Date())));
+  const [slotDate, setSlotDate] = useState(ymd(new Date()));
+  const [slotTime, setSlotTime] = useState('10:00');
+  const dateSlots = schedule.dateSlots || {};
+  const weekDates = Array.from({ length: 7 }, (_, index) => ymd(addDays(new Date(`${weekStart}T00:00:00`), index)));
 
   async function save(next = schedule) {
     await api('/api/admin/schedule', { method: 'PUT', body: JSON.stringify({ schedule: next }) });
@@ -848,46 +869,66 @@ function AdminSchedule({ store, refresh, showToast }) {
     refresh();
   }
 
+  function sortedSlots(date) {
+    return [...(dateSlots[date] || [])].sort();
+  }
+
+  function updateDateSlots(date, slots) {
+    const nextDateSlots = { ...dateSlots };
+    const unique = [...new Set(slots)].filter(Boolean).sort();
+    if (unique.length) {
+      nextDateSlots[date] = unique;
+    } else {
+      delete nextDateSlots[date];
+    }
+    setSchedule({ ...schedule, dateSlots: nextDateSlots });
+  }
+
+  function addSlot(date = slotDate, time = slotTime) {
+    if (!date || !time) return;
+    updateDateSlots(date, [...(dateSlots[date] || []), time]);
+  }
+
   return (
     <section className="admin-card glass">
-      {week.map(([key, label]) => (
-        <label key={key}>{label}
-          <input
-            value={(schedule.workDays[key] || []).join(', ')}
-            placeholder="10:00, 12:00, 14:00"
-            onChange={(event) => setSchedule({
-              ...schedule,
-              workDays: { ...schedule.workDays, [key]: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) }
-            })}
-          />
-        </label>
-      ))}
-      <h3>Заблокированные дни</h3>
+      <h3>Свободные окошки на неделю</h3>
       <div className="inline-fields">
-        <input type="date" value={blockDate} onChange={(event) => setBlockDate(event.target.value)} />
-        <button onClick={() => setSchedule({ ...schedule, blockedDates: [...new Set([...(schedule.blockedDates || []), blockDate])] })}>Добавить</button>
+        <button onClick={() => setWeekStart(ymd(addDays(new Date(`${weekStart}T00:00:00`), -7)))}><ChevronLeft size={16} /></button>
+        <input type="date" value={weekStart} onChange={(event) => setWeekStart(ymd(mondayOf(new Date(`${event.target.value}T00:00:00`))))} />
+        <button onClick={() => setWeekStart(ymd(addDays(new Date(`${weekStart}T00:00:00`), 7)))}><ChevronRight size={16} /></button>
       </div>
-      <div className="chips">
-        {schedule.blockedDates?.map((date) => (
-          <button key={date} onClick={() => setSchedule({ ...schedule, blockedDates: schedule.blockedDates.filter((item) => item !== date) })}>
-            {date} <X size={14} />
-          </button>
+
+      <div className="inline-fields">
+        <input type="date" value={slotDate} onChange={(event) => setSlotDate(event.target.value)} />
+        <input type="time" value={slotTime} onChange={(event) => setSlotTime(event.target.value)} />
+        <button onClick={() => addSlot()}>Добавить окошко</button>
+      </div>
+
+      <div className="week-slots">
+        {weekDates.map((date) => (
+          <div className="week-day-card" key={date}>
+            <div>
+              <strong>{shortDateLabel(date)}</strong>
+              <span>{date}</span>
+            </div>
+            <div className="chips">
+              {sortedSlots(date).length ? sortedSlots(date).map((time) => (
+                <button key={`${date}-${time}`} onClick={() => updateDateSlots(date, sortedSlots(date).filter((item) => item !== time))}>
+                  {time} <X size={14} />
+                </button>
+              )) : <em>Окошек нет</em>}
+            </div>
+            <button className="secondary" onClick={() => {
+              setSlotDate(date);
+              addSlot(date, slotTime);
+            }}>
+              + {slotTime}
+            </button>
+          </div>
         ))}
       </div>
-      <h3>Заблокированное время</h3>
-      <div className="inline-fields">
-        <input type="date" value={blockDate} onChange={(event) => setBlockDate(event.target.value)} />
-        <input type="time" value={blockTime} onChange={(event) => setBlockTime(event.target.value)} />
-        <button onClick={() => setSchedule({ ...schedule, blockedSlots: [...(schedule.blockedSlots || []), { date: blockDate, time: blockTime }] })}>Добавить</button>
-      </div>
-      <div className="chips">
-        {schedule.blockedSlots?.map((slot, index) => (
-          <button key={`${slot.date}-${slot.time}-${index}`} onClick={() => setSchedule({ ...schedule, blockedSlots: schedule.blockedSlots.filter((_, i) => i !== index) })}>
-            {slot.date} {slot.time} <X size={14} />
-          </button>
-        ))}
-      </div>
-      <button className="primary" onClick={() => save()}><Save size={18} /> Сохранить график</button>
+
+      <button className="primary" onClick={() => save({ ...schedule, dateSlots })}><Save size={18} /> Сохранить график</button>
     </section>
   );
 }

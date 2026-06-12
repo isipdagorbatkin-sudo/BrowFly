@@ -502,7 +502,25 @@ app.put('/api/admin/services', requireAdmin, asyncRoute(async (req, res) => {
 
 app.put('/api/admin/schedule', requireAdmin, asyncRoute(async (req, res) => {
   const store = await updateStore((draft) => {
-    draft.schedule = { ...draft.schedule, ...req.body.schedule };
+    const schedule = req.body.schedule || {};
+    const dateSlots = Object.fromEntries(
+      Object.entries(schedule.dateSlots || {})
+        .map(([date, slots]) => [
+          date,
+          [...new Set(Array.isArray(slots) ? slots : [])]
+            .map((time) => String(time || '').trim())
+            .filter((time) => /^\d{2}:\d{2}$/.test(time))
+            .sort()
+        ])
+        .filter(([, slots]) => slots.length > 0)
+    );
+
+    draft.schedule = {
+      ...draft.schedule,
+      ...schedule,
+      timezone: 'Europe/Moscow',
+      dateSlots
+    };
   });
   res.json(store.schedule);
 }));

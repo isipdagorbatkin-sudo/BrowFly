@@ -699,6 +699,39 @@ textarea {
   gap: 5px;
 }
 
+.week-slots {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.week-day-card {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .08);
+}
+
+.week-day-card strong {
+  display: block;
+  text-transform: capitalize;
+}
+
+.week-day-card span,
+.week-day-card em {
+  color: rgba(255, 255, 255, .62);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.week-day-card .secondary {
+  white-space: nowrap;
+}
+
 .appointment-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -808,6 +841,16 @@ textarea {
 .review-summary p {
   margin: 0;
   color: rgba(255, 255, 255, .8);
+}
+
+@media (max-width: 420px) {
+  .week-day-card {
+    grid-template-columns: 1fr;
+  }
+
+  .week-day-card .secondary {
+    justify-self: start;
+  }
 }
 
 @media (min-width: 760px) {
