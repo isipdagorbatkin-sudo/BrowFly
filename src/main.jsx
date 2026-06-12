@@ -298,9 +298,9 @@ function ServiceCategory({ category, defaultOpen, selected, setSelected }) {
                   <span>{minutes(item.durationMinutes)}</span>
                   <strong>{money(item.price)}</strong>
                   <button
-                    className={selected?.id === item.id ? 'selected' : ''}
-                    onClick={() => setSelected(item)}
-                  >
+                  className={selected?.id === item.id ? 'selected' : ''}
+                  onClick={() => setSelected(selected?.id === item.id ? null : item)}
+                >
                     {selected?.id === item.id ? 'Выбрано' : 'Записаться'}
                   </button>
                 </div>
@@ -366,6 +366,10 @@ function BookingFlow({ selected, onBack, showToast }) {
   return (
     <>
       <main className="content booking-content">
+        <button className="back-to-profile glass" onClick={onBack}>
+          <ChevronLeft size={18} />
+          Назад
+        </button>
         <section className="calendar-card glass">
           <div className="calendar-top">
             <button onClick={onBack} aria-label="Назад"><ChevronLeft /></button>

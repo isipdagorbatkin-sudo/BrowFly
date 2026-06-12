@@ -399,6 +399,17 @@ p {
   padding-top: 16px;
 }
 
+.back-to-profile {
+  min-height: 42px;
+  margin-bottom: 12px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 12px;
+  font-weight: 900;
+}
+
 .calendar-card,
 .slots-card,
 .done-card {
