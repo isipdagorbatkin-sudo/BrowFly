@@ -126,6 +126,18 @@ async function sendTelegramMessage(chatId, text, extra = {}) {
   return response.json().catch(() => ({ ok: response.ok }));
 }
 
+async function callTelegram(method, payload) {
+  if (!process.env.BOT_TOKEN) return { ok: false, skipped: true };
+
+  const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  return response.json().catch(() => ({ ok: response.ok }));
+}
+
 function formatAppointmentMessage(title, store, appointment) {
   const enriched = enrichAppointment(store, appointment);
   const services = enriched.services.map((service) => service.title).join(', ') || 'услуга';
@@ -168,6 +180,35 @@ app.post('/api/telegram/webhook', asyncRoute(async (req, res) => {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (secret && req.get('x-telegram-bot-api-secret-token') !== secret) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const callback = req.body?.callback_query;
+  if (callback?.data?.startsWith('confirm:')) {
+    const appointmentId = callback.data.replace('confirm:', '');
+    let confirmedAppointment;
+    const store = await updateStore((draft) => {
+      const appointment = draft.appointments.find((item) => item.id === appointmentId);
+      if (!appointment || appointment.status === 'cancelled') return;
+      appointment.confirmedAt = new Date().toISOString();
+      confirmedAppointment = appointment;
+    });
+
+    await callTelegram('answerCallbackQuery', {
+      callback_query_id: callback.id,
+      text: confirmedAppointment ? 'Запись подтверждена' : 'Запись не найдена',
+      show_alert: false
+    });
+
+    if (confirmedAppointment) {
+      const adminMessage = [
+        'Клиент подтвердил запись',
+        `Клиент: ${confirmedAppointment.user?.first_name || 'Клиент'} ${confirmedAppointment.user?.username ? `@${confirmedAppointment.user.username}` : ''}`,
+        formatAppointmentMessage('Детали', store, confirmedAppointment)
+      ].join('\n');
+      await Promise.allSettled((store.adminChatIds || []).map((chatId) => sendTelegramMessage(chatId, adminMessage)));
+    }
+
+    return res.json({ ok: true });
   }
 
   const message = req.body?.message || req.body?.edited_message;
@@ -371,10 +412,10 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
 
   const store = await readStore();
   const now = new Date();
-  const windowStart = new Date(now.getTime() + 3 * 60 * 60_000 - 5 * 60_000);
-  const windowEnd = new Date(now.getTime() + 3 * 60 * 60_000 + 10 * 60_000);
+  const windowStart = new Date(now.getTime() + 24 * 60 * 60_000 - 5 * 60_000);
+  const windowEnd = new Date(now.getTime() + 24 * 60 * 60_000 + 10 * 60_000);
   const due = store.appointments.filter((appointment) => {
-    if (appointment.status === 'cancelled' || appointment.reminderSentAt || !appointment.user?.id) return false;
+    if (appointment.status === 'cancelled' || appointment.status === 'completed' || appointment.reminder24SentAt || !appointment.user?.id) return false;
     const startsAt = toDateTime(appointment.date, appointment.time);
     return startsAt >= windowStart && startsAt <= windowEnd;
   });
@@ -383,15 +424,36 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
     due.map((appointment) => {
       const enriched = enrichAppointment(store, appointment);
       const services = enriched.services.map((service) => service.title).join(', ') || 'услуга';
-      return sendTelegramMessage(
-        appointment.user.id,
-        [
-          'Напоминание о записи',
-          `Через 3 часа запись к Юлии: ${services}.`,
-          `Дата: ${appointment.date}`,
-          `Время: ${appointment.time}`
-        ].join('\n')
-      );
+      const clientMessage = [
+        'Напоминание о записи',
+        `Завтра запись к Юлии: ${services}.`,
+        `Дата: ${appointment.date}`,
+        `Время: ${appointment.time}`,
+        '',
+        'Пожалуйста, подтвердите запись кнопкой ниже.'
+      ].join('\n');
+      const adminMessage = [
+        'Напоминание мастеру',
+        `Завтра запись: ${services}.`,
+        `Клиент: ${appointment.user?.first_name || 'Клиент'} ${appointment.user?.username ? `@${appointment.user.username}` : ''}`,
+        `Дата: ${appointment.date}`,
+        `Время: ${appointment.time}`
+      ].join('\n');
+
+      return Promise.allSettled([
+        sendTelegramMessage(
+          appointment.user.id,
+          clientMessage,
+          {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: 'Подтвердить', callback_data: `confirm:${appointment.id}` }
+              ]]
+            }
+          }
+        ),
+        ...(store.adminChatIds || []).map((chatId) => sendTelegramMessage(chatId, adminMessage))
+      ]);
     })
   );
 
@@ -400,11 +462,13 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
       const current = draft.appointments.find((item) => item.id === appointment.id);
       if (!current) return;
       const value = results[index];
-      if (value.status === 'fulfilled' && value.value?.ok !== false) {
-        current.reminderSentAt = new Date().toISOString();
-        delete current.reminderError;
+      const clientResult = value.value?.[0];
+      const clientSent = value.status === 'fulfilled' && clientResult?.status === 'fulfilled' && clientResult.value?.ok !== false;
+      if (clientSent) {
+        current.reminder24SentAt = new Date().toISOString();
+        delete current.reminder24Error;
       } else {
-        current.reminderError = value.reason?.message || value.value?.description || 'send_failed';
+        current.reminder24Error = value.reason?.message || clientResult?.reason?.message || clientResult?.value?.description || 'send_failed';
       }
     });
   });
@@ -412,7 +476,7 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
   res.json({
     checked: store.appointments.length,
     due: due.length,
-    sent: storeAfterSend.appointments.filter((appointment) => appointment.reminderSentAt).length
+    sent: storeAfterSend.appointments.filter((appointment) => appointment.reminder24SentAt).length
   });
 }));
 

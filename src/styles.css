@@ -789,6 +789,22 @@ textarea {
   font-weight: 900;
 }
 
+.confirm-note {
+  margin: 2px 0 8px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(95, 228, 159, .14);
+  color: #cffff0;
+  font-weight: 900;
+}
+
+.confirm-note.small {
+  width: fit-content;
+  margin: 2px 0 0;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
 .review-summary p {
   margin: 0;
   color: rgba(255, 255, 255, .8);

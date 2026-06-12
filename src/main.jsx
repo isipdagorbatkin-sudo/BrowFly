@@ -605,6 +605,7 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
         <h2>{appointmentTitle(appointment)}</h2>
         <p>{appointment.date} в {appointment.time}</p>
         {totalPrice || totalDuration ? <p>{money(totalPrice)} · {minutes(totalDuration)}</p> : null}
+        {appointment.confirmedAt && <p className="confirm-note">Запись подтверждена ✅</p>}
         {isCancelled && <p className="muted">Эта запись отменена.</p>}
         {isCompleted && !review && <p className="review-invite">Оставьте пожалуйста отзыв ✨</p>}
         {!isCancelled && !isCompleted && (
@@ -925,6 +926,7 @@ function AdminAppointments({ store, refresh, showToast }) {
             <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
             <span>{appointment.date} в {appointment.time}</span>
             <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
+            {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
           </div>
           <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
           <div className="appointment-actions">
