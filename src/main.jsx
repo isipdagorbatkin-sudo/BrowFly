@@ -1105,13 +1105,13 @@ function AdminAppointments({ store, refresh, showToast }) {
             <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
             <span>{appointment.date} в {appointment.time}</span>
             <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
+            <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
             {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
             {appointment.referenceUrl && (
               <a className="reference-link" href={appointment.referenceUrl} target="_blank" rel="noreferrer">Открыть референс</a>
             )}
             {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
           </div>
-          <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
           <div className="appointment-actions">
             {clientMessageUrl(appointment.user) && (
               <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>

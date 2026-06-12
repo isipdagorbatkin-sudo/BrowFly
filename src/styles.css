@@ -10,6 +10,13 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -23,10 +30,34 @@ textarea {
   font: inherit;
 }
 
+button,
+input,
+textarea,
+a,
+p,
+span,
+strong,
+em,
+h1,
+h2,
+h3 {
+  min-width: 0;
+}
+
 button {
   border: 0;
   color: inherit;
   cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+img {
+  max-width: 100%;
+}
+
+input,
+textarea {
+  max-width: 100%;
 }
 
 .app-shell {
@@ -87,6 +118,7 @@ button {
   min-height: 100vh;
   margin: 0 auto;
   padding: 20px 14px 116px;
+  overflow-x: hidden;
 }
 
 .public-tabs {
@@ -116,6 +148,8 @@ button {
 }
 
 .glass {
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .13);
   background: rgba(70, 69, 73, .58);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .09), 0 14px 32px rgba(0, 0, 0, .18);
@@ -712,6 +746,7 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .tabs button,
@@ -737,6 +772,8 @@ textarea {
   display: grid;
   gap: 13px;
   margin-top: 12px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .admin-card label {
@@ -800,6 +837,7 @@ textarea {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
   gap: 8px;
+  min-width: 0;
 }
 
 .social-admin-row {
@@ -942,23 +980,34 @@ textarea {
 
 .appointment-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   gap: 10px;
   padding: 12px;
   border-radius: 12px;
   background: rgba(255, 255, 255, .08);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .appointment-info {
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+
+.appointment-info strong,
+.appointment-info span,
+.appointment-comment-line {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .appointment-actions {
-  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .appointment-actions a,
@@ -966,6 +1015,9 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
 }
 
 .appointment-row span {
@@ -977,8 +1029,14 @@ textarea {
 }
 
 .appointment-row em {
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .12);
   font-style: normal;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .appointment-row em.cancelled {
