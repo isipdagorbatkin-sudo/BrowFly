@@ -141,14 +141,18 @@ async function callTelegram(method, payload) {
 function formatAppointmentMessage(title, store, appointment) {
   const enriched = enrichAppointment(store, appointment);
   const services = enriched.services.map((service) => service.title).join(', ') || 'услуга';
-  return [
+  const rows = [
     title,
     `Услуги: ${services}`,
     `Дата: ${appointment.date}`,
     `Время: ${appointment.time}`,
     `Итого: ${enriched.totalPrice || 0} ₽`,
     `Длительность: ${enriched.totalDurationMinutes || 0} мин`
-  ].join('\n');
+  ];
+
+  if (appointment.comment) rows.push(`Комментарий: ${appointment.comment}`);
+
+  return rows.join('\n');
 }
 
 async function notifyAppointmentCreated(store, appointment) {
@@ -282,6 +286,7 @@ app.post('/api/appointments', asyncRoute(async (req, res) => {
   const store = await readStore();
   const user = getRequestUser(req) || req.body.user || {};
   const { date, time } = req.body;
+  const comment = String(req.body.comment || '').trim().slice(0, 500);
   const serviceIds = getRequestedServiceIds(req);
 
   if (!hasAllServices(store, serviceIds)) {
@@ -300,6 +305,7 @@ app.post('/api/appointments', asyncRoute(async (req, res) => {
       serviceIds,
       date,
       time,
+      comment,
       user,
       status: 'active',
       createdAt: new Date().toISOString()

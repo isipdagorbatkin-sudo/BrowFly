@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const ADMIN_USERNAMES = new Set(['m_lova_yulia', 'ivyheroin']);
+const ADMIN_USERNAMES = new Set(['m_lova_yulia', 'ivyheroin', 'lash_yulia_m']);
 
 function normalizeUsername(username = '') {
   return username.replace(/^@/, '').trim().toLowerCase();

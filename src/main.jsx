@@ -9,10 +9,10 @@ import {
   Copy,
   Instagram,
   Link as LinkIcon,
-  MessageCircle,
   Music2,
   Plus,
   Save,
+  Send,
   Settings,
   Star,
   Trash2,
@@ -23,7 +23,7 @@ import {
 import './styles.css';
 
 const tg = window.Telegram?.WebApp;
-const adminNames = new Set(['m_lova_yulia', 'ivyheroin']);
+const adminNames = new Set(['m_lova_yulia', 'ivyheroin', 'lash_yulia_m']);
 
 function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -149,8 +149,17 @@ function SocialIcon({ social }) {
   if (key.includes('instagram')) return <Instagram size={17} />;
   if (key.includes('vk')) return <span className="vk-mark">vk</span>;
   if (key.includes('tik') || key.includes('music')) return <Music2 size={17} />;
-  if (key.includes('telegram')) return <MessageCircle size={17} />;
+  if (key.includes('telegram')) return <Send size={18} />;
   return <LinkIcon size={17} />;
+}
+
+function socialHandle(social) {
+  if (detectSocialType(social) !== 'telegram') return '';
+  const raw = String(social.url || '').trim();
+  const match = raw.match(/(?:t\.me|telegram\.me)\/([^/?#]+)/i);
+  const username = (match?.[1] || raw.replace(/^@/, '')).trim();
+  if (!username || username.startsWith('http')) return '';
+  return `@${username}`;
 }
 
 function App() {
@@ -269,8 +278,16 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
               {socials.length > 0 && (
                 <div className="socials">
                   {socials.map((social) => (
-                    <a key={social.id} href={social.url} target="_blank" rel="noreferrer" aria-label={social.label}>
+                    <a
+                      key={social.id}
+                      href={social.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={social.label}
+                      className={detectSocialType(social) === 'telegram' ? 'telegram-social' : ''}
+                    >
                       <SocialIcon social={social} />
+                      {socialHandle(social) && <span>{socialHandle(social)}</span>}
                     </a>
                   ))}
                 </div>
@@ -401,6 +418,7 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
   const [date, setDate] = useState('');
   const [slots, setSlots] = useState([]);
   const [time, setTime] = useState('');
+  const [comment, setComment] = useState('');
   const [done, setDone] = useState(null);
   const summary = serviceSummary(selected);
   const serviceIds = selected.map((service) => service.id);
@@ -431,7 +449,7 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
   async function book() {
     const result = await api('/api/appointments', {
       method: 'POST',
-      body: JSON.stringify({ serviceIds, date, time, user: getUser() })
+      body: JSON.stringify({ serviceIds, date, time, comment, user: getUser() })
     });
     setDone(result.appointment);
     showToast('Запись создана!');
@@ -484,6 +502,17 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
           <SlotGroup title="Утро" slots={slots.filter((slot) => Number(slot.slice(0, 2)) < 12)} time={time} setTime={setTime} />
           <SlotGroup title="День" slots={slots.filter((slot) => Number(slot.slice(0, 2)) >= 12 && Number(slot.slice(0, 2)) < 18)} time={time} setTime={setTime} />
           <SlotGroup title="Вечер" slots={slots.filter((slot) => Number(slot.slice(0, 2)) >= 18)} time={time} setTime={setTime} />
+        </section>
+        <section className="slots-card glass">
+          <label className="booking-comment">
+            Комментарий к записи
+            <textarea
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              maxLength={500}
+              placeholder="Например: хочу натуральный эффект, есть чувствительность, буду на 5 минут позже"
+            />
+          </label>
         </section>
       </main>
       <div className="bottom-bar">
@@ -626,6 +655,12 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
         <h2>{appointmentTitle(appointment)}</h2>
         <p>{appointment.date} в {appointment.time}</p>
         {totalPrice || totalDuration ? <p>{money(totalPrice)} · {minutes(totalDuration)}</p> : null}
+        {appointment.comment && (
+          <div className="appointment-comment">
+            <strong>Комментарий</strong>
+            <p>{appointment.comment}</p>
+          </div>
+        )}
         {appointment.confirmedAt && <p className="confirm-note">Запись подтверждена ✅</p>}
         {isCancelled && <p className="muted">Эта запись отменена.</p>}
         {isCompleted && !review && <p className="review-invite">Оставьте пожалуйста отзыв ✨</p>}
@@ -967,6 +1002,7 @@ function AdminAppointments({ store, refresh, showToast }) {
             <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
             <span>{appointment.date} в {appointment.time}</span>
             <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
+            {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
             {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
           </div>
           <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>

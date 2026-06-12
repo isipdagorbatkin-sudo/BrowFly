@@ -176,8 +176,8 @@ p {
 }
 
 .socials a {
-  width: 34px;
-  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
   display: grid;
   place-items: center;
   border-radius: 10px;
@@ -185,6 +185,37 @@ p {
   text-decoration: none;
   background: rgba(255, 255, 255, .18);
   border: 1px solid rgba(255, 255, 255, .14);
+}
+
+.socials a.telegram-social {
+  width: auto;
+  grid-template-columns: 34px;
+  gap: 5px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, .72);
+}
+
+.telegram-social svg {
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .16);
+  border: 1px solid rgba(255, 255, 255, .14);
+  color: rgba(255, 255, 255, .66);
+}
+
+.telegram-social span {
+  max-width: 118px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, .72);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .vk-mark {
@@ -501,6 +532,19 @@ p {
   margin-top: 16px;
 }
 
+.booking-comment {
+  display: grid;
+  gap: 8px;
+  color: rgba(255, 255, 255, .72);
+  font-size: 14px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.booking-comment textarea {
+  min-height: 86px;
+}
+
 .slot-group {
   margin-bottom: 22px;
 }
@@ -798,6 +842,10 @@ textarea {
   color: rgba(255, 255, 255, .68);
 }
 
+.appointment-comment-line {
+  white-space: pre-line;
+}
+
 .appointment-row em {
   font-style: normal;
   font-weight: 900;
@@ -845,6 +893,20 @@ textarea {
   padding: 14px;
   border-radius: 12px;
   background: rgba(255, 255, 255, .1);
+}
+
+.appointment-comment {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .1);
+  text-align: left;
+}
+
+.appointment-comment p {
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, .8);
+  white-space: pre-line;
 }
 
 .review-invite {
