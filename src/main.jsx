@@ -1271,11 +1271,7 @@ function AdminAppointments({ store, refresh, showToast }) {
                 )}
                 {appointment.status === 'active' && <button onClick={() => complete(appointment.id)}>Завершить</button>}
                 {appointment.status !== 'cancelled' && appointment.status !== 'completed' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
-                <button onClick={() => {
-                  api(`/api/admin/appointments/${appointment.id}/archive`, { method: 'PATCH' });
-                  showToast('Запись в архиве');
-                  refresh();
-                }}>В архив</button>
+                <button onClick={() => toggleArchive(appointment.id)}>В архив</button>
               </div>
             </div>
           ))}
