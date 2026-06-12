@@ -77,6 +77,10 @@ export async function saveUpload(file) {
 
 export function ensureLocalUploadsDir() {
   const uploadsDir = path.join(process.cwd(), 'uploads');
-  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  try {
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch {
+    return path.join(process.cwd(), '.vercel-empty-uploads');
+  }
   return uploadsDir;
 }
