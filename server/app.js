@@ -401,9 +401,30 @@ app.patch('/api/my/appointments/:id', asyncRoute(async (req, res) => {
         current.status = 'cancelled';
         current.cancelledBy = 'client';
         current.cancelledAt = new Date().toISOString();
-        current.archived = true;
-        current.archivedAt = new Date().toISOString();
       }
+      appointment = current;
+    });
+  } catch (error) {
+    if (error.message === 'appointment_not_found') return res.status(404).json({ error: '\u0417\u0430\u043f\u0438\u0441\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430' });
+    if (error.message === 'appointment_forbidden') return res.status(403).json({ error: '\u042d\u0442\u043e \u043d\u0435 \u0432\u0430\u0448\u0430 \u0437\u0430\u043f\u0438\u0441\u044c' });
+    throw error;
+  }
+
+  res.json({ appointment: enrichAppointment(store, appointment) });
+}));
+
+app.patch('/api/my/appointments/:id/archive', asyncRoute(async (req, res) => {
+  const user = getRequestUser(req) || req.body.user || {};
+  let appointment;
+  let store;
+
+  try {
+    store = await updateStore((draft) => {
+      const current = draft.appointments.find((item) => item.id === req.params.id);
+      if (!current) throw new Error('appointment_not_found');
+      if (!sameUser(current.user, user)) throw new Error('appointment_forbidden');
+      current.archived = true;
+      current.archivedAt = new Date().toISOString();
       appointment = current;
     });
   } catch (error) {
@@ -588,13 +609,9 @@ app.patch('/api/admin/appointments/:id', requireAdmin, asyncRoute(async (req, re
       if (appointment.status === 'cancelled') {
         appointment.cancelledBy = 'admin';
         appointment.cancelledAt = new Date().toISOString();
-        appointment.archived = true;
-        appointment.archivedAt = new Date().toISOString();
       }
       if (appointment.status === 'completed') {
         appointment.completedAt = new Date().toISOString();
-        appointment.archived = true;
-        appointment.archivedAt = new Date().toISOString();
       }
       updatedAppointment = appointment;
     }

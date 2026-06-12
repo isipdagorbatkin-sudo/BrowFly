@@ -726,6 +726,15 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
     onCancelled(result.appointment);
   }
 
+  async function archiveAppointment() {
+    await api(`/api/my/appointments/${appointment.id}/archive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ user: getUser() })
+    });
+    showToast('Запись в архиве');
+    onBack();
+  }
+
   return (
     <main className="content">
       <section className="done-card glass">
@@ -755,6 +764,7 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
         {!isCancelled && !isCompleted && (
           <button className="secondary danger" onClick={cancelAppointment}>Отменить запись</button>
         )}
+        <button className="secondary" onClick={archiveAppointment}>В архив</button>
         {review ? (
           <div className="review-summary">
             <strong>Твоя оценка: {review.rating}/5</strong>
@@ -1261,6 +1271,11 @@ function AdminAppointments({ store, refresh, showToast }) {
                 )}
                 {appointment.status === 'active' && <button onClick={() => complete(appointment.id)}>Завершить</button>}
                 {appointment.status !== 'cancelled' && appointment.status !== 'completed' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
+                <button onClick={() => {
+                  api(`/api/admin/appointments/${appointment.id}/archive`, { method: 'PATCH' });
+                  showToast('Запись в архиве');
+                  refresh();
+                }}>В архив</button>
               </div>
             </div>
           ))}
