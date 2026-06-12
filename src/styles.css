@@ -713,6 +713,23 @@ textarea {
   resize: vertical;
 }
 
+.archive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.archive-header h2 {
+  margin: 0;
+}
+
+.secondary.small {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
 .toast {
   position: fixed;
   z-index: 30;

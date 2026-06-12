@@ -357,7 +357,24 @@ app.get('/api/my/appointments', asyncRoute(async (req, res) => {
   const store = await readStore();
   const user = getRequestUser(req);
   const appointments = store.appointments
-    .filter((appointment) => sameUser(appointment.user, user))
+    .filter((appointment) => sameUser(appointment.user, user) && !appointment.archived)
+    .map((appointment) => {
+      const review = store.reviews.find((item) => item.appointmentId === appointment.id);
+      return {
+        ...enrichAppointment(store, appointment),
+        review: review || null
+      };
+    })
+    .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
+
+  res.json({ appointments });
+}));
+
+app.get('/api/my/archive', asyncRoute(async (req, res) => {
+  const store = await readStore();
+  const user = getRequestUser(req);
+  const appointments = store.appointments
+    .filter((appointment) => sameUser(appointment.user, user) && appointment.archived)
     .map((appointment) => {
       const review = store.reviews.find((item) => item.appointmentId === appointment.id);
       return {
@@ -384,6 +401,8 @@ app.patch('/api/my/appointments/:id', asyncRoute(async (req, res) => {
         current.status = 'cancelled';
         current.cancelledBy = 'client';
         current.cancelledAt = new Date().toISOString();
+        current.archived = true;
+        current.archivedAt = new Date().toISOString();
       }
       appointment = current;
     });
@@ -569,9 +588,13 @@ app.patch('/api/admin/appointments/:id', requireAdmin, asyncRoute(async (req, re
       if (appointment.status === 'cancelled') {
         appointment.cancelledBy = 'admin';
         appointment.cancelledAt = new Date().toISOString();
+        appointment.archived = true;
+        appointment.archivedAt = new Date().toISOString();
       }
       if (appointment.status === 'completed') {
         appointment.completedAt = new Date().toISOString();
+        appointment.archived = true;
+        appointment.archivedAt = new Date().toISOString();
       }
       updatedAppointment = appointment;
     }
@@ -589,6 +612,32 @@ app.patch('/api/admin/appointments/:id', requireAdmin, asyncRoute(async (req, re
   }
 
   res.json(store.appointments.map((appointment) => enrichAppointment(store, appointment)));
+}));
+
+app.get('/api/admin/archive', requireAdmin, asyncRoute(async (req, res) => {
+  const store = await readStore();
+  const appointments = store.appointments
+    .filter((appointment) => appointment.archived)
+    .map((appointment) => enrichAppointment(store, appointment))
+    .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
+
+  res.json({ appointments });
+}));
+
+app.patch('/api/admin/appointments/:id/archive', requireAdmin, asyncRoute(async (req, res) => {
+  const store = await updateStore((draft) => {
+    const appointment = draft.appointments.find((item) => item.id === req.params.id);
+    if (appointment) {
+      if (appointment.archived) {
+        delete appointment.archived;
+        delete appointment.archivedAt;
+      } else {
+        appointment.archived = true;
+        appointment.archivedAt = new Date().toISOString();
+      }
+    }
+  });
+  res.json({ appointments: store.appointments.map((appointment) => enrichAppointment(store, appointment)) });
 }));
 
 app.post('/api/uploads/reference', upload.single('file'), asyncRoute(async (req, res) => {

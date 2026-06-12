@@ -618,6 +618,7 @@ function MyAppointments({ data, reload, showToast }) {
   const [appointments, setAppointments] = useState([]);
   const [active, setActive] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showArchive, setShowArchive] = useState(false);
 
   useEffect(() => {
     loadAppointments();
@@ -630,9 +631,30 @@ function MyAppointments({ data, reload, showToast }) {
     setLoading(false);
   }
 
+  async function loadArchive() {
+    setLoading(true);
+    const result = await api('/api/my/archive');
+    setAppointments(result.appointments || []);
+    setLoading(false);
+  }
+
   async function refreshAll() {
-    await loadAppointments();
+    if (showArchive) {
+      await loadArchive();
+    } else {
+      await loadAppointments();
+    }
     await reload();
+  }
+
+  function openArchive() {
+    setShowArchive(true);
+    loadArchive();
+  }
+
+  function closeArchive() {
+    setShowArchive(false);
+    loadAppointments();
   }
 
   if (active) {
@@ -653,9 +675,16 @@ function MyAppointments({ data, reload, showToast }) {
   return (
     <main className="content">
       <section className="admin-card glass">
-        <h2>Мои записи</h2>
+        <div className="archive-header">
+          <h2>{showArchive ? 'Архив' : 'Мои записи'}</h2>
+          {showArchive ? (
+            <button className="secondary small" onClick={closeArchive}>← Мои записи</button>
+          ) : (
+            <button className="secondary small" onClick={openArchive}>Архив</button>
+          )}
+        </div>
         {loading && <p className="muted">Загрузка...</p>}
-        {!loading && appointments.length === 0 && <p className="muted">Записей пока нет.</p>}
+        {!loading && appointments.length === 0 && <p className="muted">{showArchive ? 'В архиве пока нет записей.' : 'Записей пока нет.'}</p>}
         {appointments.map((appointment) => (
           <button className="my-appointment" key={appointment.id} onClick={() => setActive(appointment)}>
             <strong>{appointmentTitle(appointment)}</strong>
@@ -1122,6 +1151,10 @@ function AdminSchedule({ store, refresh, showToast }) {
 }
 
 function AdminAppointments({ store, refresh, showToast }) {
+  const [view, setView] = useState('active');
+  const [archive, setArchive] = useState([]);
+  const [loadingArchive, setLoadingArchive] = useState(false);
+
   const services = new Map(store.services.flatMap((category) => category.items.map((item) => [item.id, item])));
   function getAppointmentServices(appointment) {
     const ids = appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId].filter(Boolean);
@@ -1140,37 +1173,99 @@ function AdminAppointments({ store, refresh, showToast }) {
     refresh();
   }
 
+  async function toggleArchive(id) {
+    await api(`/api/admin/appointments/${id}/archive`, { method: 'PATCH' });
+    showToast('Статус архива изменен');
+    if (view === 'archive') {
+      await loadArchive();
+    }
+    refresh();
+  }
+
+  async function loadArchive() {
+    setLoadingArchive(true);
+    const result = await api('/api/admin/archive');
+    setArchive(result.appointments || []);
+    setLoadingArchive(false);
+  }
+
+  function openArchive() {
+    setView('archive');
+    loadArchive();
+  }
+
   function clientMessageUrl(user) {
     if (user?.username) return `https://t.me/${String(user.username).replace('@', '')}`;
     if (user?.id) return `tg://user?id=${user.id}`;
     return '';
   }
 
+  const activeAppointments = store.appointments.filter((app) => !app.archived);
+
   return (
     <section className="admin-card glass">
-      {store.appointments.length === 0 && <p className="muted">Записей пока нет</p>}
-      {store.appointments.map((appointment) => (
-        <div className="appointment-row" key={appointment.id}>
-          <div className="appointment-info">
-            <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
-            <span>{appointment.date} в {appointment.time}</span>
-            <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
-            <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
-            {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
-            {appointment.referenceUrl && (
-              <a className="reference-link" href={appointment.referenceUrl} target="_blank" rel="noreferrer">Открыть референс</a>
-            )}
-            {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
-          </div>
-          <div className="appointment-actions">
-            {clientMessageUrl(appointment.user) && (
-              <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>
-            )}
-            {appointment.status === 'active' && <button onClick={() => complete(appointment.id)}>Завершить</button>}
-            {appointment.status !== 'cancelled' && appointment.status !== 'completed' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
-          </div>
-        </div>
-      ))}
+      <div className="archive-header">
+        <h2>{view === 'archive' ? 'Архив записей' : 'Записи'}</h2>
+        {view === 'archive' ? (
+          <button className="secondary small" onClick={() => setView('active')}>← Активные</button>
+        ) : (
+          <button className="secondary small" onClick={openArchive}>Архив</button>
+        )}
+      </div>
+
+      {view === 'archive' ? (
+        <>
+          {loadingArchive && <p className="muted">Загрузка...</p>}
+          {!loadingArchive && archive.length === 0 && <p className="muted">В архиве пока нет записей.</p>}
+          {archive.map((appointment) => (
+            <div className="appointment-row" key={appointment.id}>
+              <div className="appointment-info">
+                <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
+                <span>{appointment.date} в {appointment.time}</span>
+                <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
+                <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
+                {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
+                {appointment.referenceUrl && (
+                  <a className="reference-link" href={appointment.referenceUrl} target="_blank" rel="noreferrer">Открыть референс</a>
+                )}
+                {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
+              </div>
+              <div className="appointment-actions">
+                {clientMessageUrl(appointment.user) && (
+                  <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>
+                )}
+                <button onClick={() => toggleArchive(appointment.id)}>Вернуть из архива</button>
+              </div>
+            </div>
+          ))}
+        </>
+      ) : (
+        <>
+          {activeAppointments.length === 0 && <p className="muted">Активных записей нет</p>}
+          {activeAppointments.map((appointment) => (
+            <div className="appointment-row" key={appointment.id}>
+              <div className="appointment-info">
+                <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
+                <span>{appointment.date} в {appointment.time}</span>
+                <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
+                <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
+                {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
+                {appointment.referenceUrl && (
+                  <a className="reference-link" href={appointment.referenceUrl} target="_blank" rel="noreferrer">Открыть референс</a>
+                )}
+                {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
+              </div>
+              <div className="appointment-actions">
+                {clientMessageUrl(appointment.user) && (
+                  <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>
+                )}
+                {appointment.status === 'active' && <button onClick={() => complete(appointment.id)}>Завершить</button>}
+                {appointment.status !== 'cancelled' && appointment.status !== 'completed' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </section>
   );
 }
