@@ -127,6 +127,23 @@ async function sendTelegramMessage(chatId, text, extra = {}) {
   return response.json().catch(() => ({ ok: response.ok }));
 }
 
+async function sendTelegramPhoto(chatId, photo, caption, extra = {}) {
+  if (!process.env.BOT_TOKEN || !chatId || !photo) return { ok: false, skipped: true };
+
+  const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendPhoto`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      photo,
+      caption,
+      ...extra
+    })
+  });
+
+  return response.json().catch(() => ({ ok: response.ok }));
+}
+
 async function callTelegram(method, payload) {
   if (!process.env.BOT_TOKEN) return { ok: false, skipped: true };
 
@@ -152,9 +169,16 @@ function formatAppointmentMessage(title, store, appointment) {
   ];
 
   if (appointment.comment) rows.push(`Комментарий: ${appointment.comment}`);
-  if (appointment.referenceUrl) rows.push(`Референс: ${appointment.referenceUrl}`);
 
   return rows.join('\n');
+}
+
+function sendAppointmentTelegram(chatId, text, appointment, extra = {}) {
+  if (appointment.referenceUrl) {
+    return sendTelegramPhoto(chatId, appointment.referenceUrl, text, extra);
+  }
+
+  return sendTelegramMessage(chatId, text, extra);
 }
 
 async function notifyAppointmentCreated(store, appointment) {
@@ -172,8 +196,8 @@ async function notifyAppointmentCreated(store, appointment) {
   ].join('\n');
 
   await Promise.allSettled([
-    sendTelegramMessage(appointment.user?.id, clientMessage),
-    ...(store.adminChatIds || []).map((chatId) => sendTelegramMessage(chatId, adminMessage))
+    sendAppointmentTelegram(appointment.user?.id, clientMessage, appointment),
+    ...(store.adminChatIds || []).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment))
   ]);
 }
 
@@ -451,9 +475,10 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
       ].join('\n');
 
       return Promise.allSettled([
-        sendTelegramMessage(
+        sendAppointmentTelegram(
           appointment.user.id,
           clientMessage,
+          appointment,
           {
             reply_markup: {
               inline_keyboard: [[
@@ -462,7 +487,7 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
             }
           }
         ),
-        ...(store.adminChatIds || []).map((chatId) => sendTelegramMessage(chatId, adminMessage))
+        ...(store.adminChatIds || []).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment))
       ]);
     })
   );
