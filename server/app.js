@@ -84,6 +84,15 @@ function normalizeSocialUrl(label, value) {
   return raw;
 }
 
+function detectSocialType(label, value) {
+  const key = `${label || ''} ${value || ''}`.toLowerCase();
+  if (key.includes('instagram.com') || key.includes('instagr.am') || key.includes('instagram') || key.includes('инст')) return 'instagram';
+  if (key.includes('vk.com') || key.includes('vk.ru') || key.includes('vkontakte') || key.includes('вк')) return 'vk';
+  if (key.includes('tiktok.com') || key.includes('tik') || key.includes('тикток')) return 'tiktok';
+  if (key.includes('t.me') || key.includes('telegram.me') || key.includes('telegram') || key.includes('tg') || key.includes('телеграм')) return 'telegram';
+  return 'link';
+}
+
 function normalizeProfile(profile, fallback) {
   return {
     ...fallback,
@@ -92,7 +101,7 @@ function normalizeProfile(profile, fallback) {
       ? profile.socials.slice(0, 8).map((social) => ({
           ...social,
           label: String(social.label || '').trim(),
-          type: String(social.type || social.label || 'link').trim(),
+          type: detectSocialType(social.label || social.type, social.url),
           url: normalizeSocialUrl(social.label || social.type, social.url)
         }))
       : fallback.socials,

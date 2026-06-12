@@ -108,8 +108,17 @@ function ymd(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function SocialIcon({ type }) {
-  const key = String(type || '').toLowerCase();
+function detectSocialType(social = {}) {
+  const key = `${social.type || ''} ${social.label || ''} ${social.url || ''}`.toLowerCase();
+  if (key.includes('instagram.com') || key.includes('instagr.am') || key.includes('instagram') || key.includes('инст')) return 'instagram';
+  if (key.includes('vk.com') || key.includes('vk.ru') || key.includes('vkontakte') || key.includes('вк')) return 'vk';
+  if (key.includes('tiktok.com') || key.includes('tik') || key.includes('тикток')) return 'tiktok';
+  if (key.includes('t.me') || key.includes('telegram.me') || key.includes('telegram') || key.includes('tg') || key.includes('телеграм')) return 'telegram';
+  return 'link';
+}
+
+function SocialIcon({ social }) {
+  const key = detectSocialType(social);
   if (key.includes('instagram')) return <Instagram size={17} />;
   if (key.includes('vk')) return <span className="vk-mark">vk</span>;
   if (key.includes('tik') || key.includes('music')) return <Music2 size={17} />;
@@ -234,7 +243,7 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
                 <div className="socials">
                   {socials.map((social) => (
                     <a key={social.id} href={social.url} target="_blank" rel="noreferrer" aria-label={social.label}>
-                      <SocialIcon type={social.type || social.label} />
+                      <SocialIcon social={social} />
                     </a>
                   ))}
                 </div>
