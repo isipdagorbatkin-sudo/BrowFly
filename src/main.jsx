@@ -824,25 +824,75 @@ function AdminProfile({ store, refresh, showToast }) {
     input.click();
   }
 
+  function updateProfileField(field, value) {
+    setProfile({ ...profile, [field]: value });
+  }
+
   return (
     <section className="admin-card glass">
-      <label>Имя<input value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} /></label>
-      <label>Заголовок<input value={profile.title} onChange={(event) => setProfile({ ...profile, title: event.target.value })} /></label>
-      <label>Адрес<input value={profile.address} onChange={(event) => setProfile({ ...profile, address: event.target.value })} /></label>
-      <label>Описание<textarea value={profile.description} onChange={(event) => setProfile({ ...profile, description: event.target.value })} /></label>
+      <label className="profile-field">Имя
+        <div>
+          <input value={profile.name} onChange={(event) => updateProfileField('name', event.target.value)} />
+          {profile.name && <button onClick={() => updateProfileField('name', '')}><Trash2 size={16} /></button>}
+        </div>
+      </label>
+      <label className="profile-field">Заголовок
+        <div>
+          <input value={profile.title} onChange={(event) => updateProfileField('title', event.target.value)} />
+          {profile.title && <button onClick={() => updateProfileField('title', '')}><Trash2 size={16} /></button>}
+        </div>
+      </label>
+      <label className="profile-field">Адрес
+        <div>
+          <input value={profile.address} onChange={(event) => updateProfileField('address', event.target.value)} />
+          {profile.address && <button onClick={() => updateProfileField('address', '')}><Trash2 size={16} /></button>}
+        </div>
+      </label>
+      <label className="profile-field">Описание
+        <div>
+          <textarea value={profile.description} onChange={(event) => updateProfileField('description', event.target.value)} />
+          {profile.description && <button onClick={() => updateProfileField('description', '')}><Trash2 size={16} /></button>}
+        </div>
+      </label>
       <button className="secondary" onClick={() => upload('avatar')}><Upload size={17} /> Загрузить аватар</button>
+      {profile.avatarUrl && (
+        <div className="admin-media-preview avatar-preview">
+          <img src={profile.avatarUrl} alt="Текущий аватар" />
+          <div>
+            <strong>Текущий аватар</strong>
+            <button onClick={() => setProfile({ ...profile, avatarUrl: '' })}><Trash2 size={16} /> Удалить</button>
+          </div>
+        </div>
+      )}
       <button className="secondary" onClick={() => upload('background')}><Upload size={17} /> Загрузить фон</button>
       {profile.backgroundUrl && (
-        <div className="admin-background-preview">
+        <div className="admin-media-preview background-preview">
           <img src={profile.backgroundUrl} alt="Фон профиля" />
-          <button onClick={() => setProfile({ ...profile, backgroundUrl: '' })}><Trash2 size={16} /></button>
+          <div>
+            <strong>Текущий фон</strong>
+            <button onClick={() => setProfile({ ...profile, backgroundUrl: '' })}><Trash2 size={16} /> Удалить</button>
+          </div>
         </div>
       )}
       <div className="admin-gallery">
         {[0, 1, 2].map((index) => (
-          <button key={index} onClick={() => upload('gallery', index)}>
-            {profile.gallery?.[index] ? <img src={profile.gallery[index]} alt="" /> : <Plus />}
-          </button>
+          <div className="admin-gallery-item" key={index}>
+            <button onClick={() => upload('gallery', index)}>
+              {profile.gallery?.[index] ? <img src={profile.gallery[index]} alt={`Фото ${index + 1}`} /> : <Plus />}
+            </button>
+            {profile.gallery?.[index] && (
+              <button
+                className="gallery-delete"
+                onClick={() => {
+                  const gallery = [...(profile.gallery || [])];
+                  gallery[index] = '';
+                  setProfile({ ...profile, gallery: gallery.filter(Boolean).slice(0, 3) });
+                }}
+              >
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
         ))}
       </div>
       <h3>Соцсети</h3>

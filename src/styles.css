@@ -784,6 +784,33 @@ textarea {
   font-weight: 900;
 }
 
+.profile-field > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.profile-field textarea {
+  min-height: 92px;
+}
+
+.profile-field button,
+.admin-media-preview button,
+.gallery-delete {
+  min-width: 42px;
+  min-height: 42px;
+  align-self: start;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 112, 137, .16);
+  color: #ffdbe2;
+  font-weight: 900;
+}
+
 .secondary,
 .primary {
   display: inline-flex;
@@ -798,7 +825,13 @@ textarea {
   gap: 8px;
 }
 
-.admin-gallery button {
+.admin-gallery-item {
+  position: relative;
+  min-width: 0;
+}
+
+.admin-gallery-item > button:first-child {
+  width: 100%;
   aspect-ratio: 1;
   border-radius: 10px;
   overflow: hidden;
@@ -807,30 +840,49 @@ textarea {
   background: rgba(255, 255, 255, .12);
 }
 
-.admin-background-preview {
-  position: relative;
-  overflow: hidden;
+.gallery-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  background: rgba(18, 19, 24, .74);
+}
+
+.admin-media-preview {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
   border-radius: 14px;
-  aspect-ratio: 1.9;
   background: rgba(255, 255, 255, .08);
 }
 
-.admin-background-preview img {
+.admin-media-preview img {
   width: 100%;
-  height: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
   object-fit: cover;
 }
 
-.admin-background-preview button {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 36px;
-  height: 36px;
+.admin-media-preview.background-preview {
+  grid-template-columns: 1fr;
+}
+
+.admin-media-preview.background-preview img {
+  aspect-ratio: 1.9;
+}
+
+.admin-media-preview div {
   display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: rgba(18, 19, 24, .72);
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-media-preview strong {
+  overflow-wrap: anywhere;
 }
 
 .inline-fields {
