@@ -101,6 +101,7 @@ function normalizeProfile(profile, fallback) {
       ? profile.socials.slice(0, 8).map((social) => ({
           ...social,
           label: String(social.label || '').trim(),
+          username: String(social.username || '').replace('@', '').trim(),
           type: detectSocialType(social.label || social.type, social.url),
           url: normalizeSocialUrl(social.label || social.type, social.url)
         }))

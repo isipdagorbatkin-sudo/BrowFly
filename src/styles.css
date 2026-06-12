@@ -175,7 +175,8 @@ p {
   margin-bottom: 13px;
 }
 
-.socials a {
+.socials a,
+.social-link {
   min-width: 34px;
   min-height: 34px;
   display: grid;
@@ -187,14 +188,23 @@ p {
   border: 1px solid rgba(255, 255, 255, .14);
 }
 
-.socials a.telegram-social {
+.social-link.telegram-social {
   width: auto;
-  grid-template-columns: 34px;
   gap: 5px;
   padding: 0;
   background: transparent;
   border: 0;
   color: rgba(255, 255, 255, .72);
+}
+
+.telegram-social > a:first-child {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
 .telegram-social svg {
@@ -207,7 +217,13 @@ p {
   color: rgba(255, 255, 255, .66);
 }
 
-.telegram-social span {
+.telegram-social .telegram-handle {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   max-width: 118px;
   overflow: hidden;
   color: rgba(255, 255, 255, .72);
@@ -755,6 +771,14 @@ textarea {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
   gap: 8px;
+}
+
+.social-admin-row {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .07);
 }
 
 .week-nav-fields {

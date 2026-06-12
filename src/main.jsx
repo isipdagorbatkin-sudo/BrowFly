@@ -167,11 +167,17 @@ function SocialIcon({ social }) {
 
 function socialHandle(social) {
   if (detectSocialType(social) !== 'telegram') return '';
+  if (social.username) return `@${String(social.username).replace('@', '').trim()}`;
   const raw = String(social.url || '').trim();
   const match = raw.match(/(?:t\.me|telegram\.me)\/([^/?#]+)/i);
   const username = (match?.[1] || raw.replace(/^@/, '')).trim();
   if (!username || username.startsWith('http')) return '';
   return `@${username}`;
+}
+
+function telegramHandleUrl(social) {
+  const handle = socialHandle(social).replace('@', '');
+  return handle ? `https://t.me/${handle}` : social.url;
 }
 
 function App() {
@@ -290,17 +296,22 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
               {socials.length > 0 && (
                 <div className="socials">
                   {socials.map((social) => (
-                    <a
-                      key={social.id}
-                      href={social.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={social.label}
-                      className={detectSocialType(social) === 'telegram' ? 'telegram-social' : ''}
-                    >
-                      <SocialIcon social={social} />
-                      {socialHandle(social) && <span>{socialHandle(social)}</span>}
-                    </a>
+                    detectSocialType(social) === 'telegram' ? (
+                      <div className="social-link telegram-social" key={social.id}>
+                        <a href={social.url} target="_blank" rel="noreferrer" aria-label={social.label || 'Telegram'}>
+                          <SocialIcon social={social} />
+                        </a>
+                        {socialHandle(social) && (
+                          <a className="telegram-handle" href={telegramHandleUrl(social)} target="_blank" rel="noreferrer">
+                            {socialHandle(social)}
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <a key={social.id} href={social.url} target="_blank" rel="noreferrer" aria-label={social.label}>
+                        <SocialIcon social={social} />
+                      </a>
+                    )
                   ))}
                 </div>
               )}
@@ -817,21 +828,32 @@ function AdminProfile({ store, refresh, showToast }) {
       </div>
       <h3>Соцсети</h3>
       {(profile.socials || []).map((social, index) => (
-        <div className="inline-fields" key={social.id}>
-          <input value={social.label} placeholder="Название" onChange={(event) => {
-            const socials = [...profile.socials];
-            socials[index] = { ...social, label: event.target.value, type: event.target.value };
-            setProfile({ ...profile, socials });
-          }} />
-          <input value={social.url} placeholder="Ссылка или @username" onChange={(event) => {
-            const socials = [...profile.socials];
-            socials[index] = { ...social, url: event.target.value };
-            setProfile({ ...profile, socials });
-          }} />
-          <button onClick={() => setProfile({ ...profile, socials: profile.socials.filter((_, i) => i !== index) })}><Trash2 size={16} /></button>
+        <div className="social-admin-row" key={social.id}>
+          <div className="inline-fields">
+            <input value={social.label} placeholder="Название" onChange={(event) => {
+              const socials = [...profile.socials];
+              socials[index] = { ...social, label: event.target.value, type: event.target.value };
+              setProfile({ ...profile, socials });
+            }} />
+            <input value={social.url} placeholder="Ссылка на ТГК или соцсеть" onChange={(event) => {
+              const socials = [...profile.socials];
+              socials[index] = { ...social, url: event.target.value };
+              setProfile({ ...profile, socials });
+            }} />
+            <button onClick={() => setProfile({ ...profile, socials: profile.socials.filter((_, i) => i !== index) })}><Trash2 size={16} /></button>
+          </div>
+          <input
+            value={social.username || ''}
+            placeholder="Юзернейм для чата, например @julia_beautylashes"
+            onChange={(event) => {
+              const socials = [...profile.socials];
+              socials[index] = { ...social, username: event.target.value };
+              setProfile({ ...profile, socials });
+            }}
+          />
         </div>
       ))}
-      <button className="secondary" onClick={() => setProfile({ ...profile, socials: [...(profile.socials || []), { id: uid('soc'), label: 'Ссылка', type: 'link', url: '' }] })}>
+      <button className="secondary" onClick={() => setProfile({ ...profile, socials: [...(profile.socials || []), { id: uid('soc'), label: 'Ссылка', type: 'link', url: '', username: '' }] })}>
         <Plus size={17} /> Добавить ссылку
       </button>
       <button className="primary" onClick={save}><Save size={18} /> Сохранить</button>
