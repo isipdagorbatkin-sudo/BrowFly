@@ -17,6 +17,7 @@ const defaultStore = {
     description: '',
     socials: [],
     avatarUrl: '',
+    backgroundUrl: '',
     gallery: []
   },
   services: [],

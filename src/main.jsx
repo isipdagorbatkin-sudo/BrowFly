@@ -147,6 +147,14 @@ function shortDateLabel(value) {
   });
 }
 
+function fullDateLabel(value) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString('ru-RU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long'
+  });
+}
+
 function detectSocialType(social = {}) {
   const key = `${social.type || ''} ${social.label || ''} ${social.url || ''}`.toLowerCase();
   if (key.includes('instagram.com') || key.includes('instagr.am') || key.includes('instagram') || key.includes('инст')) return 'instagram';
@@ -210,7 +218,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div className="background" style={{ backgroundImage: `url(${data.profile.avatarUrl || data.profile.gallery?.[0] || ''})` }} />
+      <div className="background" style={{ backgroundImage: `url(${data.profile.backgroundUrl || data.profile.avatarUrl || data.profile.gallery?.[0] || ''})` }} />
       {isAdmin && (
         <button
           className="settings-button"
@@ -802,6 +810,10 @@ function AdminProfile({ store, refresh, showToast }) {
         setProfile({ ...profile, avatarUrl: url });
         showToast('Аватар загружен. Нажми “Сохранить”.');
       }
+      if (target === 'background') {
+        setProfile({ ...profile, backgroundUrl: url });
+        showToast('Фон загружен. Нажми “Сохранить”.');
+      }
       if (target === 'gallery') {
         const gallery = [...(profile.gallery || [])];
         gallery[index] = url;
@@ -819,6 +831,13 @@ function AdminProfile({ store, refresh, showToast }) {
       <label>Адрес<input value={profile.address} onChange={(event) => setProfile({ ...profile, address: event.target.value })} /></label>
       <label>Описание<textarea value={profile.description} onChange={(event) => setProfile({ ...profile, description: event.target.value })} /></label>
       <button className="secondary" onClick={() => upload('avatar')}><Upload size={17} /> Загрузить аватар</button>
+      <button className="secondary" onClick={() => upload('background')}><Upload size={17} /> Загрузить фон</button>
+      {profile.backgroundUrl && (
+        <div className="admin-background-preview">
+          <img src={profile.backgroundUrl} alt="Фон профиля" />
+          <button onClick={() => setProfile({ ...profile, backgroundUrl: '' })}><Trash2 size={16} /></button>
+        </div>
+      )}
       <div className="admin-gallery">
         {[0, 1, 2].map((index) => (
           <button key={index} onClick={() => upload('gallery', index)}>
@@ -956,8 +975,12 @@ function AdminSchedule({ store, refresh, showToast }) {
   const [weekStart, setWeekStart] = useState(ymd(mondayOf(new Date())));
   const [slotDate, setSlotDate] = useState(ymd(new Date()));
   const [slotTime, setSlotTime] = useState('10:00');
+  const [showWeekList, setShowWeekList] = useState(false);
   const dateSlots = schedule.dateSlots || {};
   const weekDates = Array.from({ length: 7 }, (_, index) => ymd(addDays(new Date(`${weekStart}T00:00:00`), index)));
+  const weekSlotRows = weekDates
+    .map((date) => ({ date, slots: sortedSlots(date) }))
+    .filter((item) => item.slots.length > 0);
 
   async function save(next = schedule) {
     await api('/api/admin/schedule', { method: 'PUT', body: JSON.stringify({ schedule: next }) });
@@ -1024,6 +1047,24 @@ function AdminSchedule({ store, refresh, showToast }) {
           </div>
         ))}
       </div>
+
+      <button className="secondary" onClick={() => setShowWeekList(!showWeekList)}>
+        {showWeekList ? 'Скрыть список окошек' : 'Показать все окошки за неделю'}
+      </button>
+
+      {showWeekList && (
+        <section className="free-slots-preview">
+          <h3>Свободные окошки</h3>
+          {weekSlotRows.length ? weekSlotRows.map(({ date, slots }) => (
+            <div className="free-slots-day" key={date}>
+              <strong>{fullDateLabel(date)}</strong>
+              <div>
+                {slots.map((time) => <span key={`${date}-${time}`}>{time}</span>)}
+              </div>
+            </div>
+          )) : <p className="muted">На выбранной неделе окошек пока нет.</p>}
+        </section>
+      )}
 
       <button className="primary" onClick={() => save({ ...schedule, dateSlots })}><Save size={18} /> Сохранить график</button>
     </section>
