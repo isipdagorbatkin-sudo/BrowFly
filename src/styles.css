@@ -182,6 +182,7 @@ textarea {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  cursor: zoom-in;
 }
 
 h1,
@@ -1264,6 +1265,39 @@ textarea {
   margin-top: 10px;
   border-radius: 12px;
   object-fit: cover;
+  cursor: zoom-in;
+}
+
+.image-lightbox {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(0, 0, 0, .82);
+  cursor: zoom-out;
+}
+
+.image-lightbox img {
+  max-width: min(94vw, 720px);
+  max-height: 84vh;
+  border-radius: 16px;
+  object-fit: contain;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .42);
+}
+
+.image-lightbox span {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .14);
+  color: #fff;
 }
 
 .reference-link {

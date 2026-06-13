@@ -202,6 +202,7 @@ function App() {
   const [selected, setSelected] = useState([]);
   const [booking, setBooking] = useState(false);
   const [toast, setToast] = useState('');
+  const [lightbox, setLightbox] = useState(null);
   const user = getUser();
   const isAdmin = adminNames.has(String(user?.username || '').replace('@', '').toLowerCase());
 
@@ -241,10 +242,11 @@ function App() {
       )}
 
       {mode === 'admin' && isAdmin ? (
-        <AdminPanel data={data} reload={load} showToast={showToast} />
+        <AdminPanel data={data} reload={load} showToast={showToast} openImage={setLightbox} />
       ) : booking && selected.length > 0 ? (
         <BookingFlow
           selected={selected}
+          openImage={setLightbox}
           onBack={() => setBooking(false)}
           onBooked={async () => {
             setBooking(false);
@@ -263,22 +265,29 @@ function App() {
               selected={selected}
               setSelected={setSelected}
               onContinue={() => setBooking(true)}
+              openImage={setLightbox}
               showToast={showToast}
             />
           ) : publicTab === 'reviews' ? (
             <PublicReviews data={data} />
           ) : (
-            <MyAppointments data={data} reload={load} showToast={showToast} />
+            <MyAppointments data={data} reload={load} showToast={showToast} openImage={setLightbox} />
           )}
         </>
       )}
 
+      {lightbox && (
+        <button className="image-lightbox" onClick={() => setLightbox(null)} aria-label="Закрыть фото">
+          <img src={lightbox.src} alt={lightbox.alt || 'Фото'} />
+          <span><X size={22} /></span>
+        </button>
+      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }
 
-function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
+function PublicProfile({ data, selected, setSelected, onContinue, openImage, showToast }) {
   const { profile, rating, services } = data;
   const summary = serviceSummary(selected);
   const socials = (profile.socials || []).filter((social) => social.url && social.label);
@@ -303,7 +312,9 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
       <main className="content">
         <section className="hero glass">
           <div className="avatar">
-            {profile.avatarUrl ? <img src={profile.avatarUrl} alt={profile.name || 'Мастер'} /> : <UserRound size={54} />}
+            {profile.avatarUrl ? (
+              <img src={profile.avatarUrl} alt={profile.name || 'Мастер'} onClick={() => openImage({ src: profile.avatarUrl, alt: profile.name || 'Мастер' })} />
+            ) : <UserRound size={54} />}
           </div>
           {hasProfile ? (
             <>
@@ -361,7 +372,7 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
         {profile.gallery?.length > 0 && (
           <section className="gallery-row">
             {profile.gallery.slice(0, 3).map((src) => (
-              <img key={src} src={src} alt="Работа мастера" />
+              <img key={src} src={src} alt="Работа мастера" onClick={() => openImage({ src, alt: 'Работа мастера' })} />
             ))}
           </section>
         )}
@@ -375,6 +386,7 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
                 defaultOpen={index === 0}
                 selected={selected}
                 setSelected={setSelected}
+                openImage={openImage}
               />
             ))
           ) : (
@@ -400,7 +412,7 @@ function PublicProfile({ data, selected, setSelected, onContinue, showToast }) {
   );
 }
 
-function ServiceCategory({ category, defaultOpen, selected, setSelected }) {
+function ServiceCategory({ category, defaultOpen, selected, setSelected, openImage }) {
   const [open, setOpen] = useState(defaultOpen);
   function toggleService(service) {
     setSelected((current) => (
@@ -429,7 +441,7 @@ function ServiceCategory({ category, defaultOpen, selected, setSelected }) {
                 {photos.length > 0 && (
                   <div className="photo-grid">
                     {photos.map((photo) => (
-                      <img key={photo} src={photo} alt={item.title} />
+                      <img key={photo} src={photo} alt={item.title} onClick={() => openImage({ src: photo, alt: item.title })} />
                     ))}
                   </div>
                 )}
@@ -452,7 +464,7 @@ function ServiceCategory({ category, defaultOpen, selected, setSelected }) {
   );
 }
 
-function BookingFlow({ selected, onBack, onBooked, showToast }) {
+function BookingFlow({ selected, onBack, onBooked, openImage, showToast }) {
   const [month, setMonth] = useState(() => new Date());
   const [days, setDays] = useState([]);
   const [date, setDate] = useState('');
@@ -570,7 +582,7 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
             />
           </label>
           <div className="reference-upload">
-            {referenceUrl ? <img src={referenceUrl} alt="Референс" /> : <div><Upload size={22} /> Референс</div>}
+            {referenceUrl ? <img src={referenceUrl} alt="Референс" onClick={() => openImage({ src: referenceUrl, alt: 'Референс' })} /> : <div><Upload size={22} /> Референс</div>}
             <button className="secondary" onClick={uploadReference}>
               <Upload size={16} /> {referenceUrl ? 'Заменить фото' : 'Загрузить фото'}
             </button>
@@ -623,7 +635,7 @@ function BookingCreated({ appointment, selected, onBack, onBooked }) {
   );
 }
 
-function MyAppointments({ data, reload, showToast }) {
+function MyAppointments({ data, reload, showToast, openImage }) {
   const [appointments, setAppointments] = useState([]);
   const [active, setActive] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -676,6 +688,7 @@ function MyAppointments({ data, reload, showToast }) {
           setActive(appointment);
           refreshAll();
         }}
+        openImage={openImage}
         showToast={showToast}
       />
     );
@@ -706,7 +719,7 @@ function MyAppointments({ data, reload, showToast }) {
   );
 }
 
-function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, showToast }) {
+function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, openImage, showToast }) {
   const [rating, setRating] = useState(5);
   const [text, setText] = useState('');
   const [review, setReview] = useState(appointment.review);
@@ -764,7 +777,7 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
         {appointment.referenceUrl && (
           <div className="appointment-comment">
             <strong>Референс</strong>
-            <img className="appointment-reference" src={appointment.referenceUrl} alt="Референс к записи" />
+            <img className="appointment-reference" src={appointment.referenceUrl} alt="Референс к записи" onClick={() => openImage({ src: appointment.referenceUrl, alt: 'Референс к записи' })} />
           </div>
         )}
         {appointment.confirmedAt && <p className="confirm-note">Запись подтверждена ✅</p>}
@@ -799,7 +812,7 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, show
   );
 }
 
-function AdminPanel({ data, reload, showToast }) {
+function AdminPanel({ data, reload, showToast, openImage }) {
   const [tab, setTab] = useState('profile');
   const [store, setStore] = useState(null);
 
@@ -831,15 +844,15 @@ function AdminPanel({ data, reload, showToast }) {
         </div>
       </section>
 
-      {tab === 'profile' && <AdminProfile store={store} refresh={refresh} showToast={showToast} />}
-      {tab === 'services' && <AdminServices store={store} refresh={refresh} showToast={showToast} />}
+      {tab === 'profile' && <AdminProfile store={store} refresh={refresh} showToast={showToast} openImage={openImage} />}
+      {tab === 'services' && <AdminServices store={store} refresh={refresh} showToast={showToast} openImage={openImage} />}
       {tab === 'schedule' && <AdminSchedule store={store} refresh={refresh} showToast={showToast} />}
       {tab === 'appointments' && <AdminAppointments store={store} refresh={refresh} showToast={showToast} data={data} />}
     </main>
   );
 }
 
-function AdminProfile({ store, refresh, showToast }) {
+function AdminProfile({ store, refresh, showToast, openImage }) {
   const [profile, setProfile] = useState(store.profile);
 
   async function save() {
@@ -905,7 +918,7 @@ function AdminProfile({ store, refresh, showToast }) {
       <button className="secondary" onClick={() => upload('avatar')}><Upload size={17} /> Загрузить аватар</button>
       {profile.avatarUrl && (
         <div className="admin-media-preview avatar-preview">
-          <img src={profile.avatarUrl} alt="Текущий аватар" />
+          <img src={profile.avatarUrl} alt="Текущий аватар" onClick={() => openImage({ src: profile.avatarUrl, alt: 'Текущий аватар' })} />
           <div>
             <strong>Текущий аватар</strong>
             <button onClick={() => setProfile({ ...profile, avatarUrl: '' })}><Trash2 size={16} /> Удалить</button>
@@ -915,7 +928,7 @@ function AdminProfile({ store, refresh, showToast }) {
       <button className="secondary" onClick={() => upload('background')}><Upload size={17} /> Загрузить фон</button>
       {profile.backgroundUrl && (
         <div className="admin-media-preview background-preview">
-          <img src={profile.backgroundUrl} alt="Фон профиля" />
+          <img src={profile.backgroundUrl} alt="Фон профиля" onClick={() => openImage({ src: profile.backgroundUrl, alt: 'Фон профиля' })} />
           <div>
             <strong>Текущий фон</strong>
             <button onClick={() => setProfile({ ...profile, backgroundUrl: '' })}><Trash2 size={16} /> Удалить</button>
@@ -925,7 +938,7 @@ function AdminProfile({ store, refresh, showToast }) {
       <div className="admin-gallery">
         {[0, 1, 2].map((index) => (
           <div className="admin-gallery-item" key={index}>
-            <button onClick={() => upload('gallery', index)}>
+            <button onClick={() => (profile.gallery?.[index] ? openImage({ src: profile.gallery[index], alt: `Фото ${index + 1}` }) : upload('gallery', index))}>
               {profile.gallery?.[index] ? <img src={profile.gallery[index]} alt={`Фото ${index + 1}`} /> : <Plus />}
             </button>
             {profile.gallery?.[index] && (
@@ -978,7 +991,7 @@ function AdminProfile({ store, refresh, showToast }) {
   );
 }
 
-function AdminServices({ store, refresh, showToast }) {
+function AdminServices({ store, refresh, showToast, openImage }) {
   const [services, setServices] = useState(store.services);
 
   async function save(next = services) {
@@ -1046,7 +1059,7 @@ function AdminServices({ store, refresh, showToast }) {
               </div>
               <div className="admin-gallery">
                 {[0, 1, 2].map((photoIndex) => (
-                  <button key={photoIndex} onClick={() => uploadPhoto(catIndex, itemIndex, photoIndex)}>
+                  <button key={photoIndex} onClick={() => (item.photos?.[photoIndex] ? openImage({ src: item.photos[photoIndex], alt: item.title }) : uploadPhoto(catIndex, itemIndex, photoIndex))}>
                     {item.photos?.[photoIndex] ? <img src={item.photos[photoIndex]} alt="" /> : <Plus />}
                   </button>
                 ))}
