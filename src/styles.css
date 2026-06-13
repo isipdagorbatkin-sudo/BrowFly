@@ -682,6 +682,20 @@ p {
   margin-top: 8px;
 }
 
+.done-card .primary,
+.done-card .secondary {
+  justify-self: center;
+}
+
+.done-card .primary {
+  min-width: 176px;
+  min-height: 52px;
+  padding: 0 24px;
+  border-radius: 14px;
+  font-size: 18px;
+  font-weight: 950;
+}
+
 .secondary.danger {
   background: rgba(255, 112, 137, .18);
   color: #ffd8df;
