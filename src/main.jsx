@@ -51,7 +51,7 @@ async function api(path, options = {}) {
   if (tg?.initData) headers['x-telegram-init-data'] = tg.initData;
   if (!tg?.initData) headers['x-dev-user'] = encodeDevUser(getUser());
 
-  const response = await fetch(path, { ...options, headers });
+  const response = await fetch(path, { ...options, headers, cache: 'no-store' });
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
   if (!response.ok) throw new Error(data?.error || 'Ошибка запроса');
@@ -147,6 +147,10 @@ function shortDateLabel(value) {
   });
 }
 
+function moscowDateTime(date, time) {
+  return new Date(`${date}T${time}:00+03:00`);
+}
+
 function fullDateLabel(value) {
   return new Date(`${value}T00:00:00`).toLocaleDateString('ru-RU', {
     weekday: 'short',
@@ -154,6 +158,9 @@ function fullDateLabel(value) {
     month: 'long'
   });
 }
+
+const slotHours = Array.from({ length: 15 }, (_, index) => String(index + 8).padStart(2, '0'));
+const slotMinutes = ['00', '15', '30', '45'];
 
 function detectSocialType(social = {}) {
   const key = `${social.type || ''} ${social.label || ''} ${social.url || ''}`.toLowerCase();
@@ -471,7 +478,7 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
     const result = await api(`/api/public/availability?serviceIds=${serviceQuery}&month=${key}`);
     setDays(result.days);
     const firstAvailable = result.days.find((day) => day.available);
-    setDate((current) => current || firstAvailable?.date || '');
+    setDate((current) => (current && result.days.some((day) => day.date === current && day.available) ? current : firstAvailable?.date || ''));
   }
 
   async function loadSlots(nextDate) {
@@ -523,7 +530,7 @@ function BookingFlow({ selected, onBack, onBooked, showToast }) {
         </button>
         <section className="calendar-card glass">
           <div className="calendar-top">
-            <button onClick={onBack} aria-label="Назад"><ChevronLeft /></button>
+            <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="Предыдущий месяц"><ChevronLeft /></button>
             <h2>{monthLabel(month)}</h2>
             <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="Следующий месяц">
               <ChevronRight />
@@ -1065,9 +1072,11 @@ function AdminSchedule({ store, refresh, showToast }) {
   const [schedule, setSchedule] = useState(store.schedule);
   const [weekStart, setWeekStart] = useState(ymd(mondayOf(new Date())));
   const [slotDate, setSlotDate] = useState(ymd(new Date()));
-  const [slotTime, setSlotTime] = useState('10:00');
+  const [slotHour, setSlotHour] = useState('10');
+  const [slotMinute, setSlotMinute] = useState('00');
   const [showWeekList, setShowWeekList] = useState(false);
   const dateSlots = schedule.dateSlots || {};
+  const slotTime = `${slotHour}:${slotMinute}`;
   const weekDates = Array.from({ length: 7 }, (_, index) => ymd(addDays(new Date(`${weekStart}T00:00:00`), index)));
   const weekSlotRows = weekDates
     .map((date) => ({ date, slots: sortedSlots(date) }))
@@ -1084,7 +1093,7 @@ function AdminSchedule({ store, refresh, showToast }) {
     return [...(dateSlots[date] || [])].sort();
   }
 
-  function updateDateSlots(date, slots) {
+  async function updateDateSlots(date, slots, persist = true) {
     const nextDateSlots = { ...dateSlots };
     const unique = [...new Set(slots)].filter(Boolean).sort();
     if (unique.length) {
@@ -1092,12 +1101,18 @@ function AdminSchedule({ store, refresh, showToast }) {
     } else {
       delete nextDateSlots[date];
     }
-    setSchedule({ ...schedule, dateSlots: nextDateSlots });
+    const nextSchedule = { ...schedule, dateSlots: nextDateSlots };
+    setSchedule(nextSchedule);
+    if (persist) await save(nextSchedule);
   }
 
-  function addSlot(date = slotDate, time = slotTime) {
+  async function addSlot(date = slotDate, time = slotTime) {
     if (!date || !time) return;
-    updateDateSlots(date, [...(dateSlots[date] || []), time]);
+    if (moscowDateTime(date, time) <= new Date()) {
+      showToast('Нельзя добавить окошко в прошлом');
+      return;
+    }
+    await updateDateSlots(date, [...(dateSlots[date] || []), time]);
   }
 
   return (
@@ -1111,7 +1126,15 @@ function AdminSchedule({ store, refresh, showToast }) {
 
       <div className="inline-fields slot-add-fields">
         <input className="compact-date-input" value={slotDate} inputMode="numeric" placeholder="2026-06-12" onChange={(event) => setSlotDate(event.target.value)} />
-        <input className="compact-time-input" value={slotTime} inputMode="numeric" placeholder="10:00" onChange={(event) => setSlotTime(event.target.value)} />
+        <div className="time-picker">
+          <select value={slotHour} onChange={(event) => setSlotHour(event.target.value)} aria-label="Часы">
+            {slotHours.map((hour) => <option key={hour} value={hour}>{hour}</option>)}
+          </select>
+          <span>:</span>
+          <select value={slotMinute} onChange={(event) => setSlotMinute(event.target.value)} aria-label="Минуты">
+            {slotMinutes.map((minute) => <option key={minute} value={minute}>{minute}</option>)}
+          </select>
+        </div>
         <button onClick={() => addSlot()}>Добавить окошко</button>
       </div>
 
@@ -1132,7 +1155,7 @@ function AdminSchedule({ store, refresh, showToast }) {
             <button className="secondary" onClick={() => {
               setSlotDate(date);
               addSlot(date, slotTime);
-            }}>
+            }} disabled={moscowDateTime(date, slotTime) <= new Date()}>
               + {slotTime}
             </button>
           </div>
