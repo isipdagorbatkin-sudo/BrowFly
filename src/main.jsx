@@ -1235,7 +1235,48 @@ function AdminAppointments({ store, refresh, showToast }) {
     return '';
   }
 
-  const activeAppointments = store.appointments.filter((app) => !app.archived);
+  function renderAppointmentCard(appointment, archived = false) {
+    return (
+      <div className="appointment-row" key={appointment.id}>
+        <div className="appointment-info">
+          <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
+          <span>{appointment.date} в {appointment.time}</span>
+          <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
+          <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
+          {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
+          {appointment.referenceUrl && (
+            <a className="reference-link" href={appointment.referenceUrl} target="_blank" rel="noreferrer">Открыть референс</a>
+          )}
+          {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
+        </div>
+        <div className="appointment-actions">
+          {clientMessageUrl(appointment.user) && (
+            <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>
+          )}
+          {archived ? (
+            <button onClick={() => toggleArchive(appointment.id)}>Вернуть из архива</button>
+          ) : (
+            <>
+              {appointment.status === 'active' && <button onClick={() => complete(appointment.id)}>Завершить</button>}
+              {appointment.status !== 'cancelled' && appointment.status !== 'completed' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
+              <button onClick={() => toggleArchive(appointment.id)}>В архив</button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const activeAppointments = [...store.appointments]
+    .filter((app) => !app.archived)
+    .sort((left, right) => `${left.date}T${left.time}`.localeCompare(`${right.date}T${right.time}`));
+  const activeGroups = activeAppointments.reduce((groups, appointment) => {
+    const current = groups.get(appointment.date) || [];
+    current.push(appointment);
+    groups.set(appointment.date, current);
+    return groups;
+  }, new Map());
+  const archiveAppointments = [...archive].sort((left, right) => `${right.date}T${right.time}`.localeCompare(`${left.date}T${left.time}`));
 
   return (
     <section className="admin-card glass">
@@ -1252,53 +1293,22 @@ function AdminAppointments({ store, refresh, showToast }) {
         <>
           {loadingArchive && <p className="muted">Загрузка...</p>}
           {!loadingArchive && archive.length === 0 && <p className="muted">В архиве пока нет записей.</p>}
-          {archive.map((appointment) => (
-            <div className="appointment-row" key={appointment.id}>
-              <div className="appointment-info">
-                <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
-                <span>{appointment.date} в {appointment.time}</span>
-                <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
-                <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
-                {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
-                {appointment.referenceUrl && (
-                  <a className="reference-link" href={appointment.referenceUrl} target="_blank" rel="noreferrer">Открыть референс</a>
-                )}
-                {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
-              </div>
-              <div className="appointment-actions">
-                {clientMessageUrl(appointment.user) && (
-                  <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>
-                )}
-                <button onClick={() => toggleArchive(appointment.id)}>Вернуть из архива</button>
-              </div>
-            </div>
-          ))}
+          {archiveAppointments.map((appointment) => renderAppointmentCard(appointment, true))}
         </>
       ) : (
         <>
           {activeAppointments.length === 0 && <p className="muted">Активных записей нет</p>}
-          {activeAppointments.map((appointment) => (
-            <div className="appointment-row" key={appointment.id}>
-              <div className="appointment-info">
-                <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
-                <span>{appointment.date} в {appointment.time}</span>
-                <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
-                <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
-                {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
-                {appointment.referenceUrl && (
-                  <a className="reference-link" href={appointment.referenceUrl} target="_blank" rel="noreferrer">Открыть референс</a>
-                )}
-                {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
+          {[...activeGroups.entries()].map(([date, appointments]) => (
+            <section className="busy-day-group" key={date}>
+              <div className="busy-day-head">
+                <strong>{fullDateLabel(date)}</strong>
+                <span>{appointments.length} занято</span>
               </div>
-              <div className="appointment-actions">
-                {clientMessageUrl(appointment.user) && (
-                  <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>
-                )}
-                {appointment.status === 'active' && <button onClick={() => complete(appointment.id)}>Завершить</button>}
-                {appointment.status !== 'cancelled' && appointment.status !== 'completed' && <button onClick={() => cancel(appointment.id)}>Отменить</button>}
-                <button onClick={() => toggleArchive(appointment.id)}>В архив</button>
+              <div className="busy-day-times">
+                {appointments.map((appointment) => <span key={appointment.id}>{appointment.time}</span>)}
               </div>
-            </div>
+              {appointments.map((appointment) => renderAppointmentCard(appointment))}
+            </section>
           ))}
         </>
       )}
