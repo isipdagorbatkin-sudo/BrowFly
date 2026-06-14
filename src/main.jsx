@@ -1345,6 +1345,7 @@ function AdminSchedule({ store, refresh, showToast }) {
 
 function AdminAppointments({ store, refresh, showToast }) {
   const [view, setView] = useState('active');
+  const [showBusyList, setShowBusyList] = useState(false);
   const [archive, setArchive] = useState([]);
   const [loadingArchive, setLoadingArchive] = useState(false);
 
@@ -1440,6 +1441,14 @@ function AdminAppointments({ store, refresh, showToast }) {
     groups.set(appointment.date, current);
     return groups;
   }, new Map());
+  const busyPreviewGroups = activeAppointments
+    .filter((appointment) => appointment.status !== 'cancelled' && appointment.status !== 'completed')
+    .reduce((groups, appointment) => {
+      const current = groups.get(appointment.date) || [];
+      current.push(appointment);
+      groups.set(appointment.date, current);
+      return groups;
+    }, new Map());
   const archiveAppointments = [...archive].sort((left, right) => `${right.date}T${right.time}`.localeCompare(`${left.date}T${left.time}`));
 
   return (
@@ -1449,7 +1458,12 @@ function AdminAppointments({ store, refresh, showToast }) {
         {view === 'archive' ? (
           <button className="secondary small" onClick={() => setView('active')}>← Активные</button>
         ) : (
-          <button className="secondary small" onClick={openArchive}>Архив</button>
+          <div className="archive-actions">
+            <button className="secondary small" onClick={() => setShowBusyList(!showBusyList)}>
+              {showBusyList ? 'Скрыть занятые' : 'Занятые окошки'}
+            </button>
+            <button className="secondary small" onClick={openArchive}>Архив</button>
+          </div>
         )}
       </div>
 
@@ -1461,6 +1475,27 @@ function AdminAppointments({ store, refresh, showToast }) {
         </>
       ) : (
         <>
+          {showBusyList && (
+            <section className="free-slots-preview busy-slots-preview">
+              <button className="free-slots-close" onClick={() => setShowBusyList(false)} aria-label="Закрыть список занятых окошек">
+                <X size={20} />
+              </button>
+              <h3>Занятые окошки</h3>
+              {[...busyPreviewGroups.entries()].length ? [...busyPreviewGroups.entries()].map(([date, appointments]) => (
+                <div className="free-slots-day busy-slots-day" key={date}>
+                  <strong>{fullDateLabel(date)}</strong>
+                  <div>
+                    {appointments.map((appointment) => (
+                      <span key={appointment.id}>
+                        <b>{appointment.time}</b>
+                        <small>{appointment.user?.first_name || appointment.clientName || 'Клиент'} · {getAppointmentServices(appointment).map((service) => service.title).join(', ') || 'Услуга'}</small>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )) : <p className="empty-preview-text">Занятых окошек пока нет.</p>}
+            </section>
+          )}
           {activeAppointments.length === 0 && <p className="muted">Активных записей нет</p>}
           {[...activeGroups.entries()].map(([date, appointments]) => (
             <section className="busy-day-group" key={date}>

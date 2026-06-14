@@ -735,6 +735,13 @@ textarea {
   gap: 10px;
 }
 
+.archive-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .archive-header h2 {
   margin: 0;
 }
@@ -1195,6 +1202,40 @@ textarea {
   color: #111;
   font-size: 18px;
   line-height: 1.15;
+}
+
+.busy-slots-preview {
+  margin-bottom: 2px;
+}
+
+.busy-slots-day div {
+  display: grid;
+  gap: 10px;
+}
+
+.busy-slots-day span {
+  display: grid;
+  gap: 3px;
+}
+
+.busy-slots-day b {
+  color: #111;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.busy-slots-day small {
+  max-width: 100%;
+  color: rgba(17, 17, 17, .74);
+  font-size: 14px;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+}
+
+.empty-preview-text {
+  margin: 0;
+  color: rgba(17, 17, 17, .7);
+  font-weight: 800;
 }
 
 .appointment-row {
