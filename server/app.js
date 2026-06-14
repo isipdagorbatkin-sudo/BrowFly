@@ -55,6 +55,7 @@ function hasAllServices(store, serviceIds) {
 function enrichAppointment(store, appointment) {
   const serviceIds = getAppointmentServiceIds(appointment);
   const summary = getServicesSummary(store, serviceIds);
+  const customDurationMinutes = Number(appointment.customDurationMinutes || 0);
   return {
     ...appointment,
     serviceIds,
@@ -63,7 +64,7 @@ function enrichAppointment(store, appointment) {
     services: summary.services,
     categories: summary.categories,
     totalPrice: summary.totalPrice,
-    totalDurationMinutes: summary.totalDurationMinutes
+    totalDurationMinutes: summary.totalDurationMinutes || customDurationMinutes
   };
 }
 
@@ -71,19 +72,24 @@ function timeRangesOverlap(startA, endA, startB, endB) {
   return startA < endB && startB < endA;
 }
 
-function getManualAppointmentAvailabilityError(store, date, time, serviceIds) {
+function getAppointmentDurationMinutes(store, appointment) {
+  const summary = getServicesSummary(store, getAppointmentServiceIds(appointment));
+  return summary.totalDurationMinutes || Number(appointment.customDurationMinutes || 0) || 60;
+}
+
+function getManualAppointmentAvailabilityError(store, date, time, serviceIds, customDurationMinutes = 60) {
   const summary = getServicesSummary(store, serviceIds);
   const start = toDateTime(date, time);
-  const end = new Date(start.getTime() + (summary.totalDurationMinutes || 60) * 60_000);
+  const duration = summary.totalDurationMinutes || Number(customDurationMinutes || 0) || 60;
+  const end = new Date(start.getTime() + duration * 60_000);
 
   if (start <= new Date()) return 'Нельзя добавить запись в прошлое';
 
   const hasConflict = store.appointments
     .filter((appointment) => appointment.status !== 'cancelled')
     .some((appointment) => {
-      const otherSummary = getServicesSummary(store, getAppointmentServiceIds(appointment));
       const otherStart = toDateTime(appointment.date, appointment.time);
-      const otherEnd = new Date(otherStart.getTime() + (otherSummary.totalDurationMinutes || 60) * 60_000);
+      const otherEnd = new Date(otherStart.getTime() + getAppointmentDurationMinutes(store, appointment) * 60_000);
       return timeRangesOverlap(start, end, otherStart, otherEnd);
     });
 
@@ -181,10 +187,10 @@ async function callTelegram(method, payload) {
 
 function formatAppointmentMessage(title, store, appointment) {
   const enriched = enrichAppointment(store, appointment);
-  const services = enriched.services.map((service) => service.title).join(', ') || 'услуга';
+  const services = appointment.customTitle || enriched.services.map((service) => service.title).join(', ') || 'услуга';
   const rows = [
     title,
-    `Услуги: ${services}`,
+    `${appointment.customTitle ? 'Дело' : 'Услуги'}: ${services}`,
     `Дата: ${appointment.date}`,
     `Время: ${appointment.time}`,
     `Итого: ${enriched.totalPrice || 0} ₽`,
@@ -557,7 +563,7 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
   const results = await Promise.allSettled(
     due.map((appointment) => {
       const enriched = enrichAppointment(store, appointment);
-      const services = enriched.services.map((service) => service.title).join(', ') || 'услуга';
+      const services = appointment.customTitle || enriched.services.map((service) => service.title).join(', ') || 'услуга';
       const clientMessage = [
         'Напоминание о записи',
         `Скоро запись к Юлии: ${services}.`,
@@ -677,8 +683,11 @@ app.post('/api/admin/appointments', requireAdmin, asyncRoute(async (req, res) =>
   const clientSource = String(req.body.clientSource || '').trim().slice(0, 80);
   const clientContact = String(req.body.clientContact || '').trim().slice(0, 160);
   const comment = String(req.body.comment || '').trim().slice(0, 500);
+  const customTitle = String(req.body.customTitle || '').trim().slice(0, 160);
+  const customDurationMinutes = Math.max(5, Math.min(600, Number(req.body.customDurationMinutes || 60)));
+  const isCustomReminder = Boolean(customTitle);
 
-  if (!hasAllServices(store, serviceIds)) {
+  if (!isCustomReminder && !hasAllServices(store, serviceIds)) {
     return res.status(404).json({ error: 'Услуга не найдена' });
   }
 
@@ -686,7 +695,7 @@ app.post('/api/admin/appointments', requireAdmin, asyncRoute(async (req, res) =>
     return res.status(400).json({ error: 'Нужны дата и время записи' });
   }
 
-  const availabilityError = getManualAppointmentAvailabilityError(store, date, time, serviceIds);
+  const availabilityError = getManualAppointmentAvailabilityError(store, date, time, serviceIds, customDurationMinutes);
   if (availabilityError) {
     return res.status(409).json({ error: availabilityError });
   }
@@ -695,17 +704,20 @@ app.post('/api/admin/appointments', requireAdmin, asyncRoute(async (req, res) =>
   const nextStore = await updateStore((draft) => {
     appointment = {
       id: makeId('apt'),
-      serviceId: serviceIds[0],
-      serviceIds,
+      serviceId: serviceIds[0] || '',
+      serviceIds: isCustomReminder ? [] : serviceIds,
+      customTitle,
+      customDurationMinutes: isCustomReminder ? customDurationMinutes : undefined,
+      reminderOnly: isCustomReminder,
       date,
       time,
       comment,
-      clientName,
+      clientName: isCustomReminder ? 'Юлия' : clientName,
       clientSource,
       clientContact,
       manual: true,
       user: {
-        first_name: clientName,
+        first_name: isCustomReminder ? 'Юлия' : clientName,
         username: '',
         external: true,
         source: clientSource,

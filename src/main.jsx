@@ -108,7 +108,7 @@ function appointmentServices(appointment) {
 }
 
 function appointmentTitle(appointment) {
-  return appointmentServices(appointment).map((service) => service.title).filter(Boolean).join(', ') || 'Услуга';
+  return appointment.customTitle || appointmentServices(appointment).map((service) => service.title).filter(Boolean).join(', ') || 'Услуга';
 }
 
 function appointmentStatusLabel(status) {
@@ -1145,10 +1145,14 @@ function AdminManualAppointment({ store, refresh, showToast }) {
   const [date, setDate] = useState(ymd(new Date()));
   const [hour, setHour] = useState('10');
   const [minute, setMinute] = useState('00');
+  const [entryType, setEntryType] = useState('client');
   const [clientName, setClientName] = useState('');
   const [clientSource, setClientSource] = useState('');
   const [clientContact, setClientContact] = useState('');
+  const [customTitle, setCustomTitle] = useState('');
+  const [customDurationMinutes, setCustomDurationMinutes] = useState(60);
   const [comment, setComment] = useState('');
+  const isReminder = entryType === 'reminder';
   const selectedServices = allServices.filter((service) => selectedIds.includes(service.id));
   const summary = serviceSummary(selectedServices);
 
@@ -1157,11 +1161,15 @@ function AdminManualAppointment({ store, refresh, showToast }) {
   }
 
   async function createManualAppointment() {
-    if (!selectedIds.length) {
+    if (isReminder && !customTitle.trim()) {
+      showToast('Укажи, что нужно напомнить');
+      return;
+    }
+    if (!isReminder && !selectedIds.length) {
       showToast('Выбери хотя бы одну услугу');
       return;
     }
-    if (!clientName.trim()) {
+    if (!isReminder && !clientName.trim()) {
       showToast('Укажи имя клиента');
       return;
     }
@@ -1170,12 +1178,14 @@ function AdminManualAppointment({ store, refresh, showToast }) {
       await api('/api/admin/appointments', {
         method: 'POST',
         body: JSON.stringify({
-          serviceIds: selectedIds,
+          serviceIds: isReminder ? [] : selectedIds,
+          customTitle: isReminder ? customTitle : '',
+          customDurationMinutes: isReminder ? customDurationMinutes : undefined,
           date,
           time: `${hour}:${minute}`,
-          clientName,
-          clientSource,
-          clientContact,
+          clientName: isReminder ? 'Юлия' : clientName,
+          clientSource: isReminder ? '' : clientSource,
+          clientContact: isReminder ? '' : clientContact,
           comment
         })
       });
@@ -1183,6 +1193,8 @@ function AdminManualAppointment({ store, refresh, showToast }) {
       setClientName('');
       setClientSource('');
       setClientContact('');
+      setCustomTitle('');
+      setCustomDurationMinutes(60);
       setComment('');
       setSelectedIds([]);
       await refresh();
@@ -1194,40 +1206,58 @@ function AdminManualAppointment({ store, refresh, showToast }) {
   return (
     <section className="admin-card glass">
       <h2>Мои записи</h2>
-      <p className="muted">Добавь клиента вручную, если он записался не через Telegram.</p>
+      <p className="muted">Добавь клиента вручную или разовое напоминание только для админа.</p>
 
-      <div className="manual-service-list">
-        {allServices.length === 0 && <p className="muted">Сначала добавь услуги во вкладке «Услуги».</p>}
-        {allServices.map((service) => (
-          <button
-            type="button"
-            key={service.id}
-            className={selectedIds.includes(service.id) ? 'selected' : ''}
-            onClick={() => toggleService(service.id)}
-          >
-            <span>{service.categoryTitle}</span>
-            <strong>{service.title}</strong>
-            <em>{money(service.price)} · {minutes(service.durationMinutes)}</em>
-          </button>
-        ))}
+      <div className="manual-mode-switch">
+        <button className={!isReminder ? 'active' : ''} onClick={() => setEntryType('client')}>Клиент</button>
+        <button className={isReminder ? 'active' : ''} onClick={() => setEntryType('reminder')}>Напоминание</button>
       </div>
 
-      {selectedServices.length > 0 && (
+      {!isReminder ? (
+        <>
+          <div className="manual-service-list">
+            {allServices.length === 0 && <p className="muted">Сначала добавь услуги во вкладке «Услуги».</p>}
+            {allServices.map((service) => (
+              <button
+                type="button"
+                key={service.id}
+                className={selectedIds.includes(service.id) ? 'selected' : ''}
+                onClick={() => toggleService(service.id)}
+              >
+                <span>{service.categoryTitle}</span>
+                <strong>{service.title}</strong>
+                <em>{money(service.price)} · {minutes(service.durationMinutes)}</em>
+              </button>
+            ))}
+          </div>
+
+          {selectedServices.length > 0 && (
         <div className="manual-summary">
           <strong>{summary.title}</strong>
           <span>{money(summary.totalPrice)} · {minutes(summary.totalDurationMinutes)}</span>
         </div>
-      )}
+          )}
 
-      <label>Имя клиента
-        <input value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Например Светлана" />
-      </label>
-      <label>Из какой соцсети
-        <input value={clientSource} onChange={(event) => setClientSource(event.target.value)} placeholder="Например VK, Instagram, WhatsApp" />
-      </label>
-      <label>Контакт клиента
-        <input value={clientContact} onChange={(event) => setClientContact(event.target.value)} placeholder="@username, телефон или ссылка" />
-      </label>
+          <label>Имя клиента
+            <input value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Например Светлана" />
+          </label>
+          <label>Из какой соцсети
+            <input value={clientSource} onChange={(event) => setClientSource(event.target.value)} placeholder="Например VK, Instagram, WhatsApp" />
+          </label>
+          <label>Контакт клиента
+            <input value={clientContact} onChange={(event) => setClientContact(event.target.value)} placeholder="@username, телефон или ссылка" />
+          </label>
+        </>
+      ) : (
+        <>
+          <label>Что напомнить
+            <input value={customTitle} onChange={(event) => setCustomTitle(event.target.value)} placeholder="Например: пойти в магазин" />
+          </label>
+          <label>Сколько времени занять в графике, минут
+            <input type="number" min="5" max="600" step="5" value={customDurationMinutes} onChange={(event) => setCustomDurationMinutes(Number(event.target.value))} />
+          </label>
+        </>
+      )}
 
       <div className="manual-date-time">
         <label>Дата
@@ -1389,6 +1419,10 @@ function AdminAppointments({ store, refresh, showToast }) {
     return ids.map((id) => services.get(id)).filter(Boolean);
   }
 
+  function getAdminAppointmentTitle(appointment) {
+    return appointment.customTitle || getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId || 'Услуга';
+  }
+
   async function cancel(id) {
     await api(`/api/admin/appointments/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'cancelled' }) });
     showToast('Запись отменена');
@@ -1436,7 +1470,7 @@ function AdminAppointments({ store, refresh, showToast }) {
     return (
       <div className="appointment-row" key={appointment.id}>
         <div className="appointment-info">
-          <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
+          <strong>{getAdminAppointmentTitle(appointment)}</strong>
           <span>{appointment.date} в {appointment.time}</span>
           <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
           {appointment.clientSource && <span>Источник: {appointment.clientSource}</span>}
@@ -1522,7 +1556,7 @@ function AdminAppointments({ store, refresh, showToast }) {
                     {appointments.map((appointment) => (
                       <span key={appointment.id}>
                         <b>{appointment.time}</b>
-                        <small>{appointment.user?.first_name || appointment.clientName || 'Клиент'} · {getAppointmentServices(appointment).map((service) => service.title).join(', ') || 'Услуга'}</small>
+                        <small>{appointment.user?.first_name || appointment.clientName || 'Клиент'} · {getAdminAppointmentTitle(appointment)}</small>
                       </span>
                     ))}
                   </div>

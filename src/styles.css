@@ -1021,6 +1021,28 @@ textarea {
   gap: 8px;
 }
 
+.manual-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 5px;
+  border-radius: 13px;
+  background: rgba(18, 19, 24, .34);
+}
+
+.manual-mode-switch button {
+  min-height: 40px;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, .7);
+  font-weight: 900;
+}
+
+.manual-mode-switch button.active {
+  background: #e45fc0;
+  color: #fff;
+}
+
 .manual-service-list button {
   width: 100%;
   display: grid;
