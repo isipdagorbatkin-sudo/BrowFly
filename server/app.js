@@ -173,12 +173,39 @@ function formatAppointmentMessage(title, store, appointment) {
   return rows.join('\n');
 }
 
+function formatClientLabel(appointment) {
+  const name = appointment.clientName || appointment.user?.first_name || 'Клиент';
+  const username = appointment.user?.username ? ` @${appointment.user.username}` : '';
+  const contact = appointment.clientContact ? ` ${appointment.clientContact}` : '';
+  const source = appointment.clientSource ? ` (${appointment.clientSource})` : '';
+  return `${name}${username}${contact}${source}`.trim();
+}
+
 function sendAppointmentTelegram(chatId, text, appointment, extra = {}) {
   if (appointment.referenceUrl) {
     return sendTelegramPhoto(chatId, appointment.referenceUrl, text, extra);
   }
 
   return sendTelegramMessage(chatId, text, extra);
+}
+
+async function notifyAppointmentCancelled(store, appointment, actor = 'admin') {
+  const clientMessage = [
+    'Запись отменена',
+    actor === 'client' ? 'Вы отменили запись.' : 'Мастер отменила запись.',
+    formatAppointmentMessage('Детали', store, appointment)
+  ].join('\n');
+
+  const adminMessage = [
+    'Запись отменена',
+    `Кто отменил: ${actor === 'client' ? 'клиент' : 'админ'}`,
+    `Клиент: ${formatClientLabel(appointment)}`,
+    formatAppointmentMessage('Детали', store, appointment)
+  ].join('\n');
+
+  const jobs = (store.adminChatIds || []).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment));
+  if (appointment.user?.id) jobs.push(sendAppointmentTelegram(appointment.user.id, clientMessage, appointment));
+  await Promise.allSettled(jobs);
 }
 
 async function notifyAppointmentCreated(store, appointment) {
@@ -191,7 +218,7 @@ async function notifyAppointmentCreated(store, appointment) {
 
   const adminMessage = [
     'Новая запись',
-    `Клиент: ${appointment.user?.first_name || 'Клиент'} ${appointment.user?.username ? `@${appointment.user.username}` : ''}`,
+    `Клиент: ${formatClientLabel(appointment)}`,
     formatAppointmentMessage('Детали', store, appointment)
   ].join('\n');
 
@@ -232,7 +259,7 @@ app.post('/api/telegram/webhook', asyncRoute(async (req, res) => {
     if (confirmedAppointment) {
       const adminMessage = [
         'Клиент подтвердил запись',
-        `Клиент: ${confirmedAppointment.user?.first_name || 'Клиент'} ${confirmedAppointment.user?.username ? `@${confirmedAppointment.user.username}` : ''}`,
+        `Клиент: ${formatClientLabel(confirmedAppointment)}`,
         formatAppointmentMessage('Детали', store, confirmedAppointment)
       ].join('\n');
       await Promise.allSettled((store.adminChatIds || []).map((chatId) => sendTelegramMessage(chatId, adminMessage)));
@@ -390,6 +417,7 @@ app.get('/api/my/archive', asyncRoute(async (req, res) => {
 app.patch('/api/my/appointments/:id', asyncRoute(async (req, res) => {
   const user = getRequestUser(req) || req.body.user || {};
   let appointment;
+  let shouldNotifyCancel = false;
   let store;
 
   try {
@@ -398,6 +426,7 @@ app.patch('/api/my/appointments/:id', asyncRoute(async (req, res) => {
       if (!current) throw new Error('appointment_not_found');
       if (!sameUser(current.user, user)) throw new Error('appointment_forbidden');
       if (req.body.status === 'cancelled') {
+        shouldNotifyCancel = current.status !== 'cancelled';
         current.status = 'cancelled';
         current.cancelledBy = 'client';
         current.cancelledAt = new Date().toISOString();
@@ -408,6 +437,10 @@ app.patch('/api/my/appointments/:id', asyncRoute(async (req, res) => {
     if (error.message === 'appointment_not_found') return res.status(404).json({ error: '\u0417\u0430\u043f\u0438\u0441\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430' });
     if (error.message === 'appointment_forbidden') return res.status(403).json({ error: '\u042d\u0442\u043e \u043d\u0435 \u0432\u0430\u0448\u0430 \u0437\u0430\u043f\u0438\u0441\u044c' });
     throw error;
+  }
+
+  if (shouldNotifyCancel) {
+    await notifyAppointmentCancelled(store, appointment, 'client').catch(() => {});
   }
 
   res.json({ appointment: enrichAppointment(store, appointment) });
@@ -489,7 +522,8 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
   const windowStart = now;
   const windowEnd = new Date(now.getTime() + 24 * 60 * 60_000 + 10 * 60_000);
   const due = store.appointments.filter((appointment) => {
-    if (appointment.status === 'cancelled' || appointment.status === 'completed' || appointment.reminder24SentAt || !appointment.user?.id) return false;
+    if (appointment.status === 'cancelled' || appointment.status === 'completed' || appointment.reminder24SentAt) return false;
+    if (!appointment.user?.id && !(store.adminChatIds || []).length) return false;
     const startsAt = toDateTime(appointment.date, appointment.time);
     return startsAt >= windowStart && startsAt <= windowEnd;
   });
@@ -509,13 +543,14 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
       const adminMessage = [
         'Напоминание мастеру',
         `Предстоящая запись: ${services}.`,
-        `Клиент: ${appointment.user?.first_name || 'Клиент'} ${appointment.user?.username ? `@${appointment.user.username}` : ''}`,
+        `Клиент: ${formatClientLabel(appointment)}`,
         `Дата: ${appointment.date}`,
         `Время: ${appointment.time}`
       ].join('\n');
 
-      return Promise.allSettled([
-        sendAppointmentTelegram(
+      const jobs = [];
+      if (appointment.user?.id) {
+        jobs.push(sendAppointmentTelegram(
           appointment.user.id,
           clientMessage,
           appointment,
@@ -526,9 +561,10 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
               ]]
             }
           }
-        ),
-        ...(store.adminChatIds || []).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment))
-      ]);
+        ));
+      }
+      jobs.push(...(store.adminChatIds || []).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment)));
+      return Promise.allSettled(jobs);
     })
   );
 
@@ -537,13 +573,13 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
       const current = draft.appointments.find((item) => item.id === appointment.id);
       if (!current) return;
       const value = results[index];
-      const clientResult = value.value?.[0];
-      const clientSent = value.status === 'fulfilled' && clientResult?.status === 'fulfilled' && clientResult.value?.ok !== false;
-      if (clientSent) {
+      const sent = value.status === 'fulfilled' && (value.value || []).some((result) => result.status === 'fulfilled' && result.value?.ok !== false);
+      if (sent) {
         current.reminder24SentAt = new Date().toISOString();
         delete current.reminder24Error;
       } else {
-        current.reminder24Error = value.reason?.message || clientResult?.reason?.message || clientResult?.value?.description || 'send_failed';
+        const failed = value.value?.find((result) => result.status === 'rejected' || result.value?.ok === false);
+        current.reminder24Error = value.reason?.message || failed?.reason?.message || failed?.value?.description || 'send_failed';
       }
     });
   });
@@ -600,13 +636,73 @@ app.put('/api/admin/schedule', requireAdmin, asyncRoute(async (req, res) => {
   res.json(store.schedule);
 }));
 
+app.delete('/api/admin/reviews/:id', requireAdmin, asyncRoute(async (req, res) => {
+  const store = await updateStore((draft) => {
+    draft.reviews = draft.reviews.filter((review) => review.id !== req.params.id);
+  });
+  res.json(publicPayload(store));
+}));
+
+app.post('/api/admin/appointments', requireAdmin, asyncRoute(async (req, res) => {
+  const store = await readStore();
+  const { date, time } = req.body;
+  const serviceIds = getRequestedServiceIds(req);
+  const clientName = String(req.body.clientName || '').trim().slice(0, 120) || 'Клиент';
+  const clientSource = String(req.body.clientSource || '').trim().slice(0, 80);
+  const clientContact = String(req.body.clientContact || '').trim().slice(0, 160);
+  const comment = String(req.body.comment || '').trim().slice(0, 500);
+
+  if (!hasAllServices(store, serviceIds)) {
+    return res.status(404).json({ error: 'Услуга не найдена' });
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) || !/^\d{2}:\d{2}$/.test(String(time || ''))) {
+    return res.status(400).json({ error: 'Нужны дата и время записи' });
+  }
+
+  if (!getAvailableSlots(store, date, serviceIds).includes(time)) {
+    return res.status(409).json({ error: 'Это время уже занято или недоступно' });
+  }
+
+  let appointment;
+  const nextStore = await updateStore((draft) => {
+    appointment = {
+      id: makeId('apt'),
+      serviceId: serviceIds[0],
+      serviceIds,
+      date,
+      time,
+      comment,
+      clientName,
+      clientSource,
+      clientContact,
+      manual: true,
+      user: {
+        first_name: clientName,
+        username: '',
+        external: true,
+        source: clientSource,
+        contact: clientContact
+      },
+      status: 'active',
+      createdAt: new Date().toISOString()
+    };
+    draft.appointments.push(appointment);
+  });
+
+  await notifyAppointmentCreated(nextStore, appointment).catch(() => {});
+  res.status(201).json({ appointment: enrichAppointment(nextStore, appointment) });
+}));
+
 app.patch('/api/admin/appointments/:id', requireAdmin, asyncRoute(async (req, res) => {
   let updatedAppointment;
+  let shouldNotifyCancel = false;
   const store = await updateStore((draft) => {
     const appointment = draft.appointments.find((item) => item.id === req.params.id);
     if (appointment) {
       appointment.status = req.body.status || appointment.status;
       if (appointment.status === 'cancelled') {
+        shouldNotifyCancel = appointment.cancelledBy !== 'admin' && !appointment.cancelledAt;
         appointment.cancelledBy = 'admin';
         appointment.cancelledAt = new Date().toISOString();
       }
@@ -626,6 +722,10 @@ app.patch('/api/admin/appointments/:id', requireAdmin, asyncRoute(async (req, re
         'Это очень поможет Юлии и будущим клиентам.'
       ].join('\n')
     ).catch(() => {});
+  }
+
+  if (updatedAppointment?.status === 'cancelled' && shouldNotifyCancel) {
+    await notifyAppointmentCancelled(store, updatedAppointment, 'admin').catch(() => {});
   }
 
   res.json(store.appointments.map((appointment) => enrichAppointment(store, appointment)));

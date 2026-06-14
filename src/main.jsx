@@ -836,6 +836,8 @@ function AdminPanel({ data, reload, showToast, openImage }) {
           {[
             ['profile', 'Профиль'],
             ['appointments', 'Записи'],
+            ['manual', 'Мои записи'],
+            ['reviews', 'Отзывы'],
             ['services', 'Услуги'],
             ['schedule', 'График']
           ].map(([id, label]) => (
@@ -848,6 +850,8 @@ function AdminPanel({ data, reload, showToast, openImage }) {
       {tab === 'services' && <AdminServices store={store} refresh={refresh} showToast={showToast} openImage={openImage} />}
       {tab === 'schedule' && <AdminSchedule store={store} refresh={refresh} showToast={showToast} />}
       {tab === 'appointments' && <AdminAppointments store={store} refresh={refresh} showToast={showToast} data={data} />}
+      {tab === 'manual' && <AdminManualAppointment store={store} refresh={refresh} showToast={showToast} />}
+      {tab === 'reviews' && <AdminReviews store={store} refresh={refresh} showToast={showToast} />}
     </main>
   );
 }
@@ -1081,6 +1085,127 @@ function AdminServices({ store, refresh, showToast, openImage }) {
   );
 }
 
+function AdminManualAppointment({ store, refresh, showToast }) {
+  const allServices = useMemo(
+    () => store.services.flatMap((category) => category.items.map((item) => ({ ...item, categoryTitle: category.title }))),
+    [store.services]
+  );
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [date, setDate] = useState(ymd(new Date()));
+  const [hour, setHour] = useState('10');
+  const [minute, setMinute] = useState('00');
+  const [clientName, setClientName] = useState('');
+  const [clientSource, setClientSource] = useState('');
+  const [clientContact, setClientContact] = useState('');
+  const [comment, setComment] = useState('');
+  const selectedServices = allServices.filter((service) => selectedIds.includes(service.id));
+  const summary = serviceSummary(selectedServices);
+
+  function toggleService(id) {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
+
+  async function createManualAppointment() {
+    if (!selectedIds.length) {
+      showToast('Выбери хотя бы одну услугу');
+      return;
+    }
+    if (!clientName.trim()) {
+      showToast('Укажи имя клиента');
+      return;
+    }
+
+    try {
+      await api('/api/admin/appointments', {
+        method: 'POST',
+        body: JSON.stringify({
+          serviceIds: selectedIds,
+          date,
+          time: `${hour}:${minute}`,
+          clientName,
+          clientSource,
+          clientContact,
+          comment
+        })
+      });
+      showToast('Запись добавлена');
+      setClientName('');
+      setClientSource('');
+      setClientContact('');
+      setComment('');
+      setSelectedIds([]);
+      await refresh();
+    } catch (error) {
+      showToast(error.message || 'Не получилось добавить запись');
+    }
+  }
+
+  return (
+    <section className="admin-card glass">
+      <h2>Мои записи</h2>
+      <p className="muted">Добавь клиента вручную, если он записался не через Telegram.</p>
+
+      <div className="manual-service-list">
+        {allServices.length === 0 && <p className="muted">Сначала добавь услуги во вкладке «Услуги».</p>}
+        {allServices.map((service) => (
+          <button
+            type="button"
+            key={service.id}
+            className={selectedIds.includes(service.id) ? 'selected' : ''}
+            onClick={() => toggleService(service.id)}
+          >
+            <span>{service.categoryTitle}</span>
+            <strong>{service.title}</strong>
+            <em>{money(service.price)} · {minutes(service.durationMinutes)}</em>
+          </button>
+        ))}
+      </div>
+
+      {selectedServices.length > 0 && (
+        <div className="manual-summary">
+          <strong>{summary.title}</strong>
+          <span>{money(summary.totalPrice)} · {minutes(summary.totalDurationMinutes)}</span>
+        </div>
+      )}
+
+      <label>Имя клиента
+        <input value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Например Светлана" />
+      </label>
+      <label>Из какой соцсети
+        <input value={clientSource} onChange={(event) => setClientSource(event.target.value)} placeholder="Например VK, Instagram, WhatsApp" />
+      </label>
+      <label>Контакт клиента
+        <input value={clientContact} onChange={(event) => setClientContact(event.target.value)} placeholder="@username, телефон или ссылка" />
+      </label>
+
+      <div className="manual-date-time">
+        <label>Дата
+          <input value={date} inputMode="numeric" onChange={(event) => setDate(event.target.value)} placeholder="2026-06-15" />
+        </label>
+        <label>Время
+          <div className="time-picker">
+            <select value={hour} onChange={(event) => setHour(event.target.value)} aria-label="Часы">
+              {slotHours.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+            <span>:</span>
+            <select value={minute} onChange={(event) => setMinute(event.target.value)} aria-label="Минуты">
+              {slotMinutes.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+        </label>
+      </div>
+
+      <label>Комментарий
+        <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Что важно помнить по этой записи" />
+      </label>
+
+      <button className="primary" onClick={createManualAppointment}>
+        <Plus size={18} /> Добавить запись
+      </button>
+    </section>
+  );
+}
+
 function AdminSchedule({ store, refresh, showToast }) {
   const [schedule, setSchedule] = useState(store.schedule);
   const [weekStart, setWeekStart] = useState(ymd(mondayOf(new Date())));
@@ -1181,6 +1306,9 @@ function AdminSchedule({ store, refresh, showToast }) {
 
       {showWeekList && (
         <section className="free-slots-preview">
+          <button className="free-slots-close" onClick={() => setShowWeekList(false)} aria-label="Закрыть список свободных окошек">
+            <X size={20} />
+          </button>
           <h3>Свободные окошки</h3>
           {weekSlotRows.length ? weekSlotRows.map(({ date, slots }) => (
             <div className="free-slots-day" key={date}>
@@ -1242,7 +1370,11 @@ function AdminAppointments({ store, refresh, showToast }) {
     loadArchive();
   }
 
-  function clientMessageUrl(user) {
+  function clientMessageUrl(appointment) {
+    const user = appointment.user || {};
+    const contact = String(appointment.clientContact || user.contact || '').trim();
+    if (/^https?:\/\//i.test(contact)) return contact;
+    if (contact.startsWith('@')) return `https://t.me/${contact.replace('@', '')}`;
     if (user?.username) return `https://t.me/${String(user.username).replace('@', '')}`;
     if (user?.id) return `tg://user?id=${user.id}`;
     return '';
@@ -1255,6 +1387,8 @@ function AdminAppointments({ store, refresh, showToast }) {
           <strong>{getAppointmentServices(appointment).map((service) => service.title).join(', ') || appointment.serviceId}</strong>
           <span>{appointment.date} в {appointment.time}</span>
           <span>{appointment.user?.first_name || 'Клиент'} {appointment.user?.username ? `@${appointment.user.username}` : ''}</span>
+          {appointment.clientSource && <span>Источник: {appointment.clientSource}</span>}
+          {appointment.clientContact && <span>Контакт: {appointment.clientContact}</span>}
           <em className={appointment.status}>{appointmentStatusLabel(appointment.status)}</em>
           {appointment.comment && <span className="appointment-comment-line">Комментарий: {appointment.comment}</span>}
           {appointment.referenceUrl && (
@@ -1263,8 +1397,8 @@ function AdminAppointments({ store, refresh, showToast }) {
           {appointment.confirmedAt && <span className="confirm-note small">Клиент подтвердил запись</span>}
         </div>
         <div className="appointment-actions">
-          {clientMessageUrl(appointment.user) && (
-            <a href={clientMessageUrl(appointment.user)} target="_blank" rel="noreferrer">Написать</a>
+          {clientMessageUrl(appointment) && (
+            <a href={clientMessageUrl(appointment)} target="_blank" rel="noreferrer">Написать</a>
           )}
           {archived ? (
             <button onClick={() => toggleArchive(appointment.id)}>Вернуть из архива</button>
@@ -1325,6 +1459,49 @@ function AdminAppointments({ store, refresh, showToast }) {
           ))}
         </>
       )}
+    </section>
+  );
+}
+
+function AdminReviews({ store, refresh, showToast }) {
+  const appointments = new Map(store.appointments.map((appointment) => [appointment.id, appointment]));
+  const services = new Map(store.services.flatMap((category) => category.items.map((item) => [item.id, item])));
+
+  function reviewAppointmentTitle(appointment) {
+    const ids = appointment?.serviceIds?.length ? appointment.serviceIds : [appointment?.serviceId].filter(Boolean);
+    return ids.map((id) => services.get(id)?.title).filter(Boolean).join(', ') || 'Услуга';
+  }
+
+  async function removeReview(id) {
+    await api(`/api/admin/reviews/${id}`, { method: 'DELETE' });
+    showToast('Отзыв удален');
+    await refresh();
+  }
+
+  return (
+    <section className="admin-card glass">
+      <h2>Отзывы</h2>
+      {(store.reviews || []).length === 0 && <p className="muted">Отзывов пока нет.</p>}
+      {(store.reviews || []).map((review) => {
+        const appointment = appointments.get(review.appointmentId);
+        return (
+          <div className="review-card admin-review-card" key={review.id}>
+            <div className="review-card-header">
+              <span className="review-author">{review.user?.first_name || 'Клиент'}</span>
+              <span className="review-stars">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star key={star} size={14} fill={star <= review.rating ? '#ffd84a' : 'transparent'} color="#ffd84a" />
+                ))}
+              </span>
+            </div>
+            {appointment && <span className="review-appointment">{reviewAppointmentTitle(appointment)} · {appointment.date} в {appointment.time}</span>}
+            {review.text && <p className="review-text">{review.text}</p>}
+            <button className="secondary danger" onClick={() => removeReview(review.id)}>
+              <Trash2 size={16} /> Удалить отзыв
+            </button>
+          </div>
+        );
+      })}
     </section>
   );
 }
