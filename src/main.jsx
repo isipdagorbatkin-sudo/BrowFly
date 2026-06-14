@@ -1063,9 +1063,26 @@ function AdminServices({ store, refresh, showToast, openImage }) {
               </div>
               <div className="admin-gallery">
                 {[0, 1, 2].map((photoIndex) => (
-                  <button key={photoIndex} onClick={() => (item.photos?.[photoIndex] ? openImage({ src: item.photos[photoIndex], alt: item.title }) : uploadPhoto(catIndex, itemIndex, photoIndex))}>
-                    {item.photos?.[photoIndex] ? <img src={item.photos[photoIndex]} alt="" /> : <Plus />}
-                  </button>
+                  <div className="admin-gallery-item" key={photoIndex}>
+                    <button onClick={() => (item.photos?.[photoIndex] ? openImage({ src: item.photos[photoIndex], alt: item.title }) : uploadPhoto(catIndex, itemIndex, photoIndex))}>
+                      {item.photos?.[photoIndex] ? <img src={item.photos[photoIndex]} alt="" /> : <Plus />}
+                    </button>
+                    {item.photos?.[photoIndex] && (
+                      <button
+                        className="gallery-delete"
+                        onClick={() => {
+                          const next = [...services];
+                          const photos = [...(next[catIndex].items[itemIndex].photos || [])];
+                          photos[photoIndex] = '';
+                          next[catIndex].items[itemIndex].photos = photos.filter(Boolean).slice(0, 3);
+                          setServices(next);
+                          showToast('Фото удалено. Нажми “Сохранить услуги”.');
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
