@@ -67,6 +67,29 @@ function enrichAppointment(store, appointment) {
   };
 }
 
+function timeRangesOverlap(startA, endA, startB, endB) {
+  return startA < endB && startB < endA;
+}
+
+function getManualAppointmentAvailabilityError(store, date, time, serviceIds) {
+  const summary = getServicesSummary(store, serviceIds);
+  const start = toDateTime(date, time);
+  const end = new Date(start.getTime() + (summary.totalDurationMinutes || 60) * 60_000);
+
+  if (start <= new Date()) return 'Нельзя добавить запись в прошлое';
+
+  const hasConflict = store.appointments
+    .filter((appointment) => appointment.status !== 'cancelled')
+    .some((appointment) => {
+      const otherSummary = getServicesSummary(store, getAppointmentServiceIds(appointment));
+      const otherStart = toDateTime(appointment.date, appointment.time);
+      const otherEnd = new Date(otherStart.getTime() + (otherSummary.totalDurationMinutes || 60) * 60_000);
+      return timeRangesOverlap(start, end, otherStart, otherEnd);
+    });
+
+  return hasConflict ? 'Это время уже занято другой записью' : '';
+}
+
 function normalizeSocialUrl(label, value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -660,8 +683,9 @@ app.post('/api/admin/appointments', requireAdmin, asyncRoute(async (req, res) =>
     return res.status(400).json({ error: 'Нужны дата и время записи' });
   }
 
-  if (!getAvailableSlots(store, date, serviceIds).includes(time)) {
-    return res.status(409).json({ error: 'Это время уже занято или недоступно' });
+  const availabilityError = getManualAppointmentAvailabilityError(store, date, time, serviceIds);
+  if (availabilityError) {
+    return res.status(409).json({ error: availabilityError });
   }
 
   let appointment;
