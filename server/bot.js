@@ -5,6 +5,16 @@ import { getAppointmentServiceIds, getServicesSummary, toDateTime } from './avai
 
 let bot = null;
 
+function uniqueChatIds(chatIds = []) {
+  const seen = new Set();
+  return chatIds.filter((chatId) => {
+    const key = String(chatId || '').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function getBot() {
   return bot;
 }
@@ -21,7 +31,7 @@ export function startBot() {
   bot.start(async (ctx) => {
     if (isAdminUser(ctx.from)) {
       await updateStore((draft) => {
-        draft.adminChatIds = [...new Set([...(draft.adminChatIds || []), ctx.chat.id])];
+        draft.adminChatIds = uniqueChatIds([...(draft.adminChatIds || []), ctx.chat.id]);
       }).catch(() => {});
     }
 
@@ -36,7 +46,7 @@ export function startBot() {
   bot.command('admin', async (ctx) => {
     if (isAdminUser(ctx.from)) {
       await updateStore((draft) => {
-        draft.adminChatIds = [...new Set([...(draft.adminChatIds || []), ctx.chat.id])];
+        draft.adminChatIds = uniqueChatIds([...(draft.adminChatIds || []), ctx.chat.id]);
       }).catch(() => {});
     }
 
@@ -58,7 +68,7 @@ export async function notifyAdminAboutAppointment(appointment) {
   const store = await readStore();
   const summary = getServicesSummary(store, getAppointmentServiceIds(appointment));
   const services = summary.services.map((service) => service.title).join(', ') || appointment.serviceId;
-  const chatIds = store.adminChatIds || [];
+  const chatIds = uniqueChatIds(store.adminChatIds);
 
   await Promise.allSettled(
     chatIds.map((chatId) =>

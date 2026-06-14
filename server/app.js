@@ -52,6 +52,10 @@ function hasAllServices(store, serviceIds) {
   return ids.length > 0 && ids.every((serviceId) => findService(store, serviceId));
 }
 
+function serviceSetKey(serviceIds) {
+  return normalizeServiceIds(serviceIds).sort().join('|');
+}
+
 function enrichAppointment(store, appointment) {
   const serviceIds = getAppointmentServiceIds(appointment);
   const summary = getServicesSummary(store, serviceIds);
@@ -210,6 +214,16 @@ function formatClientLabel(appointment) {
   return `${name}${username}${contact}${source}`.trim();
 }
 
+function uniqueChatIds(chatIds = []) {
+  const seen = new Set();
+  return chatIds.filter((chatId) => {
+    const key = String(chatId || '').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function sendAppointmentTelegram(chatId, text, appointment, extra = {}) {
   if (appointment.referenceUrl) {
     return sendTelegramPhoto(chatId, appointment.referenceUrl, text, extra);
@@ -232,7 +246,7 @@ async function notifyAppointmentCancelled(store, appointment, actor = 'admin') {
     formatAppointmentMessage('Детали', store, appointment)
   ].join('\n');
 
-  const jobs = (store.adminChatIds || []).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment));
+  const jobs = uniqueChatIds(store.adminChatIds).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment));
   if (appointment.user?.id) jobs.push(sendAppointmentTelegram(appointment.user.id, clientMessage, appointment));
   await Promise.allSettled(jobs);
 }
@@ -253,7 +267,7 @@ async function notifyAppointmentCreated(store, appointment) {
 
   await Promise.allSettled([
     sendAppointmentTelegram(appointment.user?.id, clientMessage, appointment),
-    ...(store.adminChatIds || []).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment))
+    ...uniqueChatIds(store.adminChatIds).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment))
   ]);
 }
 
@@ -291,7 +305,7 @@ app.post('/api/telegram/webhook', asyncRoute(async (req, res) => {
         `Клиент: ${formatClientLabel(confirmedAppointment)}`,
         formatAppointmentMessage('Детали', store, confirmedAppointment)
       ].join('\n');
-      await Promise.allSettled((store.adminChatIds || []).map((chatId) => sendTelegramMessage(chatId, adminMessage)));
+      await Promise.allSettled(uniqueChatIds(store.adminChatIds).map((chatId) => sendTelegramMessage(chatId, adminMessage)));
     }
 
     return res.json({ ok: true });
@@ -306,7 +320,7 @@ app.post('/api/telegram/webhook', asyncRoute(async (req, res) => {
 
   if (isAdminUser(user)) {
     await updateStore((draft) => {
-      draft.adminChatIds = [...new Set([...(draft.adminChatIds || []), chatId])];
+      draft.adminChatIds = uniqueChatIds([...(draft.adminChatIds || []), chatId]);
     });
   }
 
@@ -381,7 +395,21 @@ app.post('/api/appointments', asyncRoute(async (req, res) => {
   }
 
   let appointment;
+  let created = false;
   const nextStore = await updateStore((draft) => {
+    const duplicate = draft.appointments.find((item) =>
+      item.status !== 'cancelled' &&
+      item.date === date &&
+      item.time === time &&
+      sameUser(item.user, user) &&
+      serviceSetKey(getAppointmentServiceIds(item)) === serviceSetKey(serviceIds)
+    );
+
+    if (duplicate) {
+      appointment = duplicate;
+      return;
+    }
+
     appointment = {
       id: makeId('apt'),
       serviceId: serviceIds[0],
@@ -395,10 +423,13 @@ app.post('/api/appointments', asyncRoute(async (req, res) => {
       createdAt: new Date().toISOString()
     };
     draft.appointments.push(appointment);
+    created = true;
   });
 
-  await notifyAppointmentCreated(nextStore, appointment).catch(() => {});
-  res.status(201).json({ appointment: enrichAppointment(nextStore, appointment) });
+  if (created) {
+    await notifyAppointmentCreated(nextStore, appointment).catch(() => {});
+  }
+  res.status(created ? 201 : 200).json({ appointment: enrichAppointment(nextStore, appointment), duplicate: !created });
 }));
 
 function sameUser(left = {}, right = {}) {
@@ -555,7 +586,7 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
   const windowEnd = new Date(now.getTime() + 24 * 60 * 60_000 + 10 * 60_000);
   const due = store.appointments.filter((appointment) => {
     if (appointment.status === 'cancelled' || appointment.status === 'completed' || appointment.reminder24SentAt) return false;
-    if (!appointment.user?.id && !(store.adminChatIds || []).length) return false;
+    if (!appointment.user?.id && !uniqueChatIds(store.adminChatIds).length) return false;
     const startsAt = toDateTime(appointment.date, appointment.time);
     return startsAt >= windowStart && startsAt <= windowEnd;
   });
@@ -595,7 +626,7 @@ app.get('/api/cron/reminders', asyncRoute(async (req, res) => {
           }
         ));
       }
-      jobs.push(...(store.adminChatIds || []).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment)));
+      jobs.push(...uniqueChatIds(store.adminChatIds).map((chatId) => sendAppointmentTelegram(chatId, adminMessage, appointment)));
       return Promise.allSettled(jobs);
     })
   );
@@ -701,7 +732,22 @@ app.post('/api/admin/appointments', requireAdmin, asyncRoute(async (req, res) =>
   }
 
   let appointment;
+  let created = false;
   const nextStore = await updateStore((draft) => {
+    const duplicate = draft.appointments.find((item) =>
+      item.status !== 'cancelled' &&
+      item.date === date &&
+      item.time === time &&
+      String(item.customTitle || '') === customTitle &&
+      serviceSetKey(getAppointmentServiceIds(item)) === serviceSetKey(isCustomReminder ? [] : serviceIds) &&
+      String(item.clientName || item.user?.first_name || '') === String(isCustomReminder ? 'Юлия' : clientName)
+    );
+
+    if (duplicate) {
+      appointment = duplicate;
+      return;
+    }
+
     appointment = {
       id: makeId('apt'),
       serviceId: serviceIds[0] || '',
@@ -727,10 +773,13 @@ app.post('/api/admin/appointments', requireAdmin, asyncRoute(async (req, res) =>
       createdAt: new Date().toISOString()
     };
     draft.appointments.push(appointment);
+    created = true;
   });
 
-  await notifyAppointmentCreated(nextStore, appointment).catch(() => {});
-  res.status(201).json({ appointment: enrichAppointment(nextStore, appointment) });
+  if (created) {
+    await notifyAppointmentCreated(nextStore, appointment).catch(() => {});
+  }
+  res.status(created ? 201 : 200).json({ appointment: enrichAppointment(nextStore, appointment), duplicate: !created });
 }));
 
 app.patch('/api/admin/appointments/:id', requireAdmin, asyncRoute(async (req, res) => {

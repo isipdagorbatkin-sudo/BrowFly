@@ -472,6 +472,7 @@ function BookingFlow({ selected, onBack, onBooked, openImage, showToast }) {
   const [time, setTime] = useState('');
   const [comment, setComment] = useState('');
   const [referenceUrl, setReferenceUrl] = useState('');
+  const [bookingPending, setBookingPending] = useState(false);
   const [done, setDone] = useState(null);
   const summary = serviceSummary(selected);
   const serviceIds = selected.map((service) => service.id);
@@ -500,12 +501,20 @@ function BookingFlow({ selected, onBack, onBooked, openImage, showToast }) {
   }
 
   async function book() {
-    const result = await api('/api/appointments', {
-      method: 'POST',
-      body: JSON.stringify({ serviceIds, date, time, comment, referenceUrl, user: getUser() })
-    });
-    setDone(result.appointment);
-    showToast('Запись создана!');
+    if (bookingPending) return;
+    setBookingPending(true);
+    try {
+      const result = await api('/api/appointments', {
+        method: 'POST',
+        body: JSON.stringify({ serviceIds, date, time, comment, referenceUrl, user: getUser() })
+      });
+      setDone(result.appointment);
+      showToast('Запись создана!');
+    } catch (error) {
+      showToast(error.message || 'Не получилось создать запись');
+    } finally {
+      setBookingPending(false);
+    }
   }
 
   async function uploadReference() {
@@ -595,8 +604,8 @@ function BookingFlow({ selected, onBack, onBooked, openImage, showToast }) {
           <strong>{money(summary.totalPrice)}</strong>
           <em>{minutes(summary.totalDurationMinutes)}</em>
         </div>
-        <button disabled={!date || !time} onClick={book}>
-          {date ? `Записаться ${date.slice(8, 10)}.${date.slice(5, 7)}` : 'Записаться'}
+        <button disabled={bookingPending || !date || !time} onClick={book}>
+          {bookingPending ? 'Создаем...' : date ? `Записаться ${date.slice(8, 10)}.${date.slice(5, 7)}` : 'Записаться'}
         </button>
       </div>
     </>
@@ -1152,6 +1161,7 @@ function AdminManualAppointment({ store, refresh, showToast }) {
   const [customTitle, setCustomTitle] = useState('');
   const [customDurationMinutes, setCustomDurationMinutes] = useState(60);
   const [comment, setComment] = useState('');
+  const [creating, setCreating] = useState(false);
   const isReminder = entryType === 'reminder';
   const selectedServices = allServices.filter((service) => selectedIds.includes(service.id));
   const summary = serviceSummary(selectedServices);
@@ -1161,6 +1171,7 @@ function AdminManualAppointment({ store, refresh, showToast }) {
   }
 
   async function createManualAppointment() {
+    if (creating) return;
     if (isReminder && !customTitle.trim()) {
       showToast('Укажи, что нужно напомнить');
       return;
@@ -1175,6 +1186,7 @@ function AdminManualAppointment({ store, refresh, showToast }) {
     }
 
     try {
+      setCreating(true);
       await api('/api/admin/appointments', {
         method: 'POST',
         body: JSON.stringify({
@@ -1200,6 +1212,8 @@ function AdminManualAppointment({ store, refresh, showToast }) {
       await refresh();
     } catch (error) {
       showToast(error.message || 'Не получилось добавить запись');
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -1280,8 +1294,8 @@ function AdminManualAppointment({ store, refresh, showToast }) {
         <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Что важно помнить по этой записи" />
       </label>
 
-      <button className="primary" onClick={createManualAppointment}>
-        <Plus size={18} /> Добавить запись
+      <button className="primary" onClick={createManualAppointment} disabled={creating}>
+        <Plus size={18} /> {creating ? 'Добавляем...' : 'Добавить запись'}
       </button>
     </section>
   );

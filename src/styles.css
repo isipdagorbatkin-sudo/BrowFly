@@ -1002,6 +1002,7 @@ textarea {
 }
 
 .secondary:disabled,
+.primary:disabled,
 .week-day-card .secondary:disabled {
   opacity: .42;
   cursor: default;
