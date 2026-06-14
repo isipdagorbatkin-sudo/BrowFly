@@ -495,6 +495,7 @@ app.patch('/api/my/appointments/:id/archive', asyncRoute(async (req, res) => {
 app.post('/api/reviews', asyncRoute(async (req, res) => {
   const user = getRequestUser(req) || req.body.user || {};
   const { appointmentId, rating, text } = req.body;
+  const photoUrl = String(req.body.photoUrl || '').trim().slice(0, 1000);
   const normalizedRating = Math.max(1, Math.min(5, Number(rating)));
   let review;
 
@@ -506,6 +507,7 @@ app.post('/api/reviews', asyncRoute(async (req, res) => {
       if (existing) {
         existing.rating = normalizedRating;
         existing.text = String(text || '').slice(0, 700);
+        existing.photoUrl = photoUrl;
         existing.updatedAt = new Date().toISOString();
         review = existing;
         return;
@@ -516,6 +518,7 @@ app.post('/api/reviews', asyncRoute(async (req, res) => {
         appointmentId,
         rating: normalizedRating,
         text: String(text || '').slice(0, 700),
+        photoUrl,
         user,
         createdAt: new Date().toISOString()
       };

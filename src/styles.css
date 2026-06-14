@@ -1479,6 +1479,52 @@ textarea {
   color: rgba(255, 255, 255, .8);
 }
 
+.review-photo-uploader {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .08);
+}
+
+.review-photo-uploader img,
+.review-photo-uploader > div:first-child {
+  width: 96px;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.review-photo-uploader img {
+  object-fit: cover;
+  cursor: zoom-in;
+}
+
+.review-photo-uploader > div:first-child {
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, .65);
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.review-photo-uploader > div:last-child {
+  display: grid;
+  gap: 8px;
+}
+
+.review-photo {
+  width: 100%;
+  max-height: 260px;
+  border-radius: 12px;
+  object-fit: cover;
+  cursor: zoom-in;
+}
+
 .review-card {
   padding: 14px;
   border-radius: 12px;

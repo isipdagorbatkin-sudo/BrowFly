@@ -269,7 +269,7 @@ function App() {
               showToast={showToast}
             />
           ) : publicTab === 'reviews' ? (
-            <PublicReviews data={data} />
+            <PublicReviews data={data} openImage={setLightbox} />
           ) : (
             <MyAppointments data={data} reload={load} showToast={showToast} openImage={setLightbox} />
           )}
@@ -722,6 +722,7 @@ function MyAppointments({ data, reload, showToast, openImage }) {
 function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, openImage, showToast }) {
   const [rating, setRating] = useState(5);
   const [text, setText] = useState('');
+  const [reviewPhotoUrl, setReviewPhotoUrl] = useState('');
   const [review, setReview] = useState(appointment.review);
   const isCancelled = appointment.status === 'cancelled';
   const isCompleted = appointment.status === 'completed';
@@ -732,7 +733,7 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, open
   async function sendReview() {
     const result = await api('/api/reviews', {
       method: 'POST',
-      body: JSON.stringify({ appointmentId: appointment.id, rating, text, user: getUser() })
+      body: JSON.stringify({ appointmentId: appointment.id, rating, text, photoUrl: reviewPhotoUrl, user: getUser() })
     });
     setReview(result.review);
     await onReviewed();
@@ -755,6 +756,19 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, open
     });
     showToast('Запись в архиве');
     onBack();
+  }
+
+  async function uploadReviewPhoto() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async () => {
+      if (!input.files?.[0]) return;
+      const url = await uploadReferenceFile(input.files[0]);
+      setReviewPhotoUrl(url);
+      showToast('Фото к отзыву загружено');
+    };
+    input.click();
   }
 
   return (
@@ -791,6 +805,9 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, open
           <div className="review-summary">
             <strong>Твоя оценка: {review.rating}/5</strong>
             {review.text && <p>{review.text}</p>}
+            {review.photoUrl && (
+              <img className="review-photo" src={review.photoUrl} alt="Фото к отзыву" onClick={() => openImage({ src: review.photoUrl, alt: 'Фото к отзыву' })} />
+            )}
           </div>
         ) : isCompleted ? (
           <>
@@ -802,6 +819,23 @@ function AppointmentDetails({ appointment, onBack, onReviewed, onCancelled, open
               ))}
             </div>
             <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Отзыв после визита можно оставить здесь" />
+            <div className="review-photo-uploader">
+              {reviewPhotoUrl ? (
+                <img src={reviewPhotoUrl} alt="Фото к отзыву" onClick={() => openImage({ src: reviewPhotoUrl, alt: 'Фото к отзыву' })} />
+              ) : (
+                <div><Upload size={22} /> Фото к отзыву</div>
+              )}
+              <div>
+                <button className="secondary" onClick={uploadReviewPhoto}>
+                  <Upload size={16} /> {reviewPhotoUrl ? 'Заменить фото' : 'Загрузить фото'}
+                </button>
+                {reviewPhotoUrl && (
+                  <button className="secondary danger" onClick={() => setReviewPhotoUrl('')}>
+                    <Trash2 size={16} /> Удалить фото
+                  </button>
+                )}
+              </div>
+            </div>
             <button className="primary" onClick={sendReview}>Оставить отзыв</button>
           </>
         ) : !isCancelled ? (
@@ -851,7 +885,7 @@ function AdminPanel({ data, reload, showToast, openImage }) {
       {tab === 'schedule' && <AdminSchedule store={store} refresh={refresh} showToast={showToast} />}
       {tab === 'appointments' && <AdminAppointments store={store} refresh={refresh} showToast={showToast} data={data} />}
       {tab === 'manual' && <AdminManualAppointment store={store} refresh={refresh} showToast={showToast} />}
-      {tab === 'reviews' && <AdminReviews store={store} refresh={refresh} showToast={showToast} />}
+      {tab === 'reviews' && <AdminReviews store={store} refresh={refresh} showToast={showToast} openImage={openImage} />}
     </main>
   );
 }
@@ -1515,7 +1549,7 @@ function AdminAppointments({ store, refresh, showToast }) {
   );
 }
 
-function AdminReviews({ store, refresh, showToast }) {
+function AdminReviews({ store, refresh, showToast, openImage }) {
   const appointments = new Map(store.appointments.map((appointment) => [appointment.id, appointment]));
   const services = new Map(store.services.flatMap((category) => category.items.map((item) => [item.id, item])));
 
@@ -1548,6 +1582,7 @@ function AdminReviews({ store, refresh, showToast }) {
             </div>
             {appointment && <span className="review-appointment">{reviewAppointmentTitle(appointment)} · {appointment.date} в {appointment.time}</span>}
             {review.text && <p className="review-text">{review.text}</p>}
+            {review.photoUrl && <img className="review-photo" src={review.photoUrl} alt="Фото к отзыву" onClick={() => openImage({ src: review.photoUrl, alt: 'Фото к отзыву' })} />}
             <button className="secondary danger" onClick={() => removeReview(review.id)}>
               <Trash2 size={16} /> Удалить отзыв
             </button>
@@ -1558,7 +1593,7 @@ function AdminReviews({ store, refresh, showToast }) {
   );
 }
 
-function PublicReviews({ data }) {
+function PublicReviews({ data, openImage }) {
   const reviews = data.reviews || [];
 
   return (
@@ -1577,6 +1612,7 @@ function PublicReviews({ data }) {
               </span>
             </div>
             {review.text && <p className="review-text">{review.text}</p>}
+            {review.photoUrl && <img className="review-photo" src={review.photoUrl} alt="Фото к отзыву" onClick={() => openImage({ src: review.photoUrl, alt: 'Фото к отзыву' })} />}
             <span className="review-date">
               {new Date(review.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
